@@ -7,7 +7,9 @@ import { serve } from './serve.mjs';
 import { KEYS_FILE } from './paths.mjs';
 
 const keys = JSON.parse(fs.readFileSync(KEYS_FILE, 'utf8'));
-const server = await serve(8797);
+// SMOKE_BASE=https://osaka.alibeydoun.info/ runs against the live site instead of a local server.
+const origin = process.env.SMOKE_BASE || 'http://127.0.0.1:8797/';
+const server = process.env.SMOKE_BASE ? null : await serve(8797);
 const browser = await webkit.launch();
 const results = [];
 for (const viewport of [{ width: 393, height: 852 }, { width: 1366, height: 1024 }]) {
@@ -15,7 +17,7 @@ for (const viewport of [{ width: 393, height: 852 }, { width: 1366, height: 1024
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 120)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 120)); });
-  const base = `http://127.0.0.1:8797/#k=${keys.linkSecret}`;
+  const base = `${origin}#k=${keys.linkSecret}`;
   await page.goto(base);
   const env = await page.evaluate(() => fetch('data/trip.enc.json').then((r) => r.json()));
   await page.evaluate(async ({ rawKey, salt }) => {
@@ -52,5 +54,5 @@ for (const viewport of [{ width: 393, height: 852 }, { width: 1366, height: 1024
   await page.close();
 }
 await browser.close();
-server.close();
+server?.close();
 console.log(JSON.stringify(results, null, 1));

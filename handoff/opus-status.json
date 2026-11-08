@@ -7,20 +7,21 @@
     "live_handle": "Fable - Osaka Apple design [e2a77c]",
     "saved_session": "d6cb109e-5f20-49de-a152-75b5f2844d70"
   },
-  "updated": "2026-11-08",
+  "updated": "2026-11-09",
   "state": {
     "started": true,
     "designed": "design/ v1 (Fable) implemented; Fable full review and re-review ACCEPTED on c1389c8; remaining evidence is the owner device checklist (handbook/qa.md)",
     "built": true,
-    "tested": "unit 11/11; Playwright 127 passed, 5 skipped (offline Chromium-only), incl. no uncaught errors through unlock and navigation; real-data headless smoke 34 views x 2 viewports clean",
-    "published": "GitHub Pages built from main:/docs (commit 39af348), verified at GitHub edge with custom host; live domain waits on DNS CNAME osaka -> ali-beydoun.github.io (owner action), then Enforce HTTPS"
+    "tested": "unit 11/11; Playwright 133 passed, 5 skipped (offline Chromium-only); real-data smoke over live HTTPS: 35 views x 2 viewports, no errors, no overflow",
+    "published": "LIVE at https://osaka.alibeydoun.info/ over HTTPS (certificate approved, expires 2027-02-07; Enforce HTTPS on; http 301 to https). One domain reset by Fable 2026-11-08 21:31 UTC; do not reset again."
   },
   "repo": "https://github.com/ali-beydoun/osaka-trip",
-  "live_url": "https://osaka.alibeydoun.info/ (needs DNS CNAME osaka -> ali-beydoun.github.io)",
+  "live_url": "https://osaka.alibeydoun.info/",
   "private_folder": "~/dev/Personal/osaka-trip-private (data, keys, access link, audits; never commit)",
   "open_items": [
-    "Fable HIG review findings",
-    "owner device checklist (handbook/qa.md)",
-    "owner decisions on source conflicts and booking references"
+    "owner device checklist (handbook/qa.md), incl. Add to Home Screen keeps the private link (manifest has no start_url since 60af5f5)",
+    "owner answers on source conflicts (Shinjuku-tei certification, Yoshiya Mondays, Masjid Kyoto grouping)",
+    "spa morning choice (research in private folder)",
+    "Claude GitHub App / project folder binding (owner)"
   ]
 }
