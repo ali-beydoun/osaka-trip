@@ -8,7 +8,7 @@ Severity for review findings: **Blocker** (ships broken on a target device or vi
 
 - H1 `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`; no `user-scalable=no`, no `maximum-scale` (pinch zoom must stay available).
 - H2 `<meta name="color-scheme" content="light dark">` and two `theme-color` metas with `prefers-color-scheme` media.
-- H3 `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style="black-translucent"`, `apple-mobile-web-app-title="Osaka Trip"`, `apple-touch-icon` 180px, `manifest.webmanifest` with name, short_name, `display: standalone`, scope `/` and no `start_url` (iOS keeps the address the app was added from, including the private link), icons 192/512 plus 512 maskable, `background_color` and `theme_color`.
+- H3 `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style="default"` (v2; was black-translucent), `apple-mobile-web-app-title="Osaka Trip"`, `apple-touch-icon` 180px, `manifest.webmanifest` with name, short_name, `display: standalone`, scope `/` and no `start_url` (iOS keeps the address the app was added from, including the private link), icons 192/512 plus 512 maskable, `background_color` and `theme_color`.
 - H4 `<html lang="en">`; every Japanese string is wrapped with `lang="ja"`.
 - H5 `design/tokens.css` is loaded first and unmodified; a byte comparison with the design folder passes. No other stylesheet declares a colour, font-size, radius or duration literal (lint: grep for `#[0-9a-f]{3,8}`, `px` font sizes and `ms` outside tokens.css yields only documented exceptions).
 - H6 `html { font: -apple-system-body }` is in effect; the fallback applies only where unsupported.
@@ -126,3 +126,7 @@ Evidence per row: screenshots named `q<id>-<viewport>-<appearance>-<textsize>.pn
 ## R. Review handoff
 
 When the build is ready for design review the delivery lead sends: the local preview address with the fixture link, the commit hash, the Q1 to Q8 evidence location, and a list of any contract items consciously deferred with reasons. The design role reviews within the HIG eight-principle frame plus this checklist, returns findings by item id and severity, and re-reviews fixes against the same ids.
+
+## V. Appearance and hierarchy revision (v2, 9 Nov 2026)
+
+Owner steering after go-live. Items V1 to V17 are specified in `06-appearance-and-hierarchy.md` and take precedence over colour and material lines above. Default appearance is Light with Automatic and Dark selectable in Info > App.

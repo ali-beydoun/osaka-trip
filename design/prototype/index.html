@@ -4,13 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F2F7">
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+  <meta name="theme-color" content="#F3F1EC">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Osaka Trip">
   <meta name="robots" content="noindex, nofollow">
   <title>Osaka Trip prototype</title>
+  <script>
+  /* Prototype stand-in for docs/js/theme.js. Choice: #a=light|auto|dark (default light). Sets data-theme (choice),
+     data-appearance (resolved) and theme-color before the stylesheets apply. */
+  (function () {
+    var mq = matchMedia('(prefers-color-scheme: dark)');
+    function apply() {
+      var a = (new URLSearchParams(location.hash.replace(/^#/, '')).get('a') || 'light');
+      if (a !== 'dark' && a !== 'auto') a = 'light';
+      var r = a === 'auto' ? (mq.matches ? 'dark' : 'light') : a;
+      var h = document.documentElement; h.dataset.theme = a; h.dataset.appearance = r;
+      var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = r === 'dark' ? '#111113' : '#F3F1EC';
+    }
+    apply(); addEventListener('hashchange', apply); mq.addEventListener('change', apply);
+  })();
+  </script>
   <link rel="stylesheet" href="../tokens.css">
   <link rel="stylesheet" href="proto.css">
 </head>

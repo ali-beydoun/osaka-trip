@@ -4,6 +4,9 @@ Owner: Fable - Osaka Apple design. v1, 8 Nov 2026. Companion to `tokens.css`, wh
 
 Grounding: specific numbers below come from the HIG Accessibility specification table (17pt default text, 11pt minimum, 44 by 44pt default control, 4.5:1 contrast at 17pt and below, 3:1 at 18pt or bold), the Typography and Color foundations, and the Tab bars and Sidebars component pages as read on 8 Nov 2026 (June 2026 revisions). Device widths and iOS palette hex values are reference values from Apple's published resources and are marked where they appear.
 
+
+> v2 (9 Nov 2026): the palette, bar materials, surface edges and the appearance setting changed. `06-appearance-and-hierarchy.md` and `tokens.css` are authoritative where this section differs.
+
 ## 1. How to use the tokens
 
 - The app imports `design/tokens.css` first and never redefines a token outside it. App CSS uses tokens only; literal colours, font sizes, durations and radii in component CSS are a review finding.
