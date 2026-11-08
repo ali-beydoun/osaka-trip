@@ -35,9 +35,9 @@ Info > App has Lock now as a tinted text row. Tapping it forgets the remembered 
 
 ## 4. Home Screen app
 
-- Manifest: name Osaka Trip, short name Osaka, `display: standalone`, `start_url` is the site root with no fragment, light and dark theme colours, icons from `prototype/icon.svg` rendered at 192, 512 and 512 maskable, plus the 180 px `apple-touch-icon`.
+- Manifest: name Osaka Trip, short name Osaka, `display: standalone`, scope `/`, no `start_url` so iOS saves the exact address the app is added from, including the private link fragment and the current view; light and dark theme colours, icons from `prototype/icon.svg` rendered at 192, 512 and 512 maskable, plus the 180 px `apple-touch-icon`.
 - Status bar style black-translucent; the app pads the navigation bar by the top safe-area inset and the tab bar by the bottom inset so nothing sits under the status bar or home indicator.
-- First launch from the Home Screen may have no remembered key and no fragment. That is the Missing link state, worded for this case when standalone mode is detected: heading unchanged, explanation adds "The Home Screen app needs the private link once." The paste field accepts the whole URL.
+- Add from the unlocked Today view in Safari so the saved address carries the private link. The Home Screen app has its own storage, separate from Safari, so its first launch asks for the password once; Keep unlocked then holds it on that device. If the saved address ever lacks the fragment, the Missing link state applies, worded for standalone mode: heading unchanged, explanation adds "The Home Screen app needs the private link once." The paste field accepts the whole URL.
 - Standalone mode has no browser back control, so every pushed view has a visible Back control and every sheet has a Close button; the system edge swipe also pops.
 - External links in standalone mode open Safari. Rows that leave the app show the outward arrow glyph, not a chevron, so the hand-off is expected.
 

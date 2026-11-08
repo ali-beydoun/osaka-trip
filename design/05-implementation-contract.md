@@ -8,7 +8,7 @@ Severity for review findings: **Blocker** (ships broken on a target device or vi
 
 - H1 `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`; no `user-scalable=no`, no `maximum-scale` (pinch zoom must stay available).
 - H2 `<meta name="color-scheme" content="light dark">` and two `theme-color` metas with `prefers-color-scheme` media.
-- H3 `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style="black-translucent"`, `apple-mobile-web-app-title="Osaka Trip"`, `apple-touch-icon` 180px, `manifest.webmanifest` with name, short_name, `display: standalone`, `start_url` without any fragment, icons 192/512 plus 512 maskable, `background_color` and `theme_color`.
+- H3 `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style="black-translucent"`, `apple-mobile-web-app-title="Osaka Trip"`, `apple-touch-icon` 180px, `manifest.webmanifest` with name, short_name, `display: standalone`, scope `/` and no `start_url` (iOS keeps the address the app was added from, including the private link), icons 192/512 plus 512 maskable, `background_color` and `theme_color`.
 - H4 `<html lang="en">`; every Japanese string is wrapped with `lang="ja"`.
 - H5 `design/tokens.css` is loaded first and unmodified; a byte comparison with the design folder passes. No other stylesheet declares a colour, font-size, radius or duration literal (lint: grep for `#[0-9a-f]{3,8}`, `px` font sizes and `ms` outside tokens.css yields only documented exceptions).
 - H6 `html { font: -apple-system-body }` is in effect; the fallback applies only where unsupported.
