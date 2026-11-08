@@ -45,13 +45,15 @@ async function registerSW() {
     // U8: never reload on our own. Only after the person taps Reload on the update notice.
     let accepted = false;
     const offer = (w) => ui.showUpdate(() => { accepted = true; w.postMessage('skipWaiting'); });
-    if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
-    reg.addEventListener('updatefound', () => {
-      const w = reg.installing;
-      w && w.addEventListener('statechange', () => {
-        if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w);
-      });
-    });
+    // A new revision can already be installing before this script runs, so watch it as well as future ones.
+    const track = (w) => {
+      if (!w || !navigator.serviceWorker.controller) return;
+      if (w.state === 'installed') offer(w);
+      else w.addEventListener('statechange', () => { if (w.state === 'installed') offer(w); });
+    };
+    track(reg.waiting);
+    track(reg.installing);
+    reg.addEventListener('updatefound', () => track(reg.installing));
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (accepted) location.reload();
     });

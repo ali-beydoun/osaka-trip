@@ -1,6 +1,6 @@
 // Offline support. Caches only the public app shell and the ENCRYPTED trip file.
 // Decrypted trip data is never written to any cache or storage by this worker.
-const REV = '20261108T215543Z';
+const REV = '20261108T220553Z';
 const CACHE = `osaka-${REV}`;
 const SHELL = [
   './',
@@ -38,18 +38,22 @@ self.addEventListener('message', (event) => {
   if (event.data === 'skipWaiting') self.skipWaiting();
 });
 
+// Each revision's shell is atomic: a page controlled by this worker gets every shell file, including the page
+// itself and the encrypted trip, from THIS worker's cache. A newer revision installs alongside, waits, and takes
+// over only when the person taps Reload on the "Trip updated" notice. Network is the fallback for anything missing.
+async function fromOwnCache(req, key) {
+  const cache = await caches.open(CACHE);
+  return (await cache.match(key || req, { ignoreSearch: true })) || null;
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin) return; // never touch other origins
   if (req.mode === 'navigate') {
-    // App shell: network first so updates land, cached shell offline. The URL fragment never reaches here.
-    event.respondWith(fetch(req).catch(async () => (await caches.match('index.html', { ignoreSearch: true })) || Response.error()));
+    // The URL fragment never reaches here.
+    event.respondWith((async () => (await fromOwnCache(req, 'index.html')) || fetch(req).catch(() => Response.error()))());
     return;
   }
-  event.respondWith((async () => {
-    const cached = await caches.match(req, { ignoreSearch: true });
-    if (cached) return cached;
-    return fetch(req);
-  })());
+  event.respondWith((async () => (await fromOwnCache(req)) || fetch(req))());
 });

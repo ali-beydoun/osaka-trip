@@ -323,6 +323,43 @@ test.describe('privacy and indexing', () => {
 });
 
 test.describe('offline', () => {
+  test('an update keeps the old revision whole and offers Trip updated on the lock screen; Reload switches atomically', async ({ browser, browserName, request }) => {
+    test.skip(browserName !== 'chromium', 'Playwright drives service workers reliably only in Chromium; owner checks Safari on device (Q9).');
+    const { serve } = await import('../../scripts/serve.mjs');
+    const os = await import('node:os');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'osaka-sw-'));
+    const sw = path.join(tmp, 'sw.js'); const css = path.join(tmp, 'app.css'); const data = path.join(tmp, 'trip.enc.json');
+    // Reuse the running fixture server's synthetic data (rebuilding the fixture would disturb parallel tests).
+    fs.writeFileSync(data, await (await request.get('/data/trip.enc.json')).body());
+    fs.copyFileSync('docs/sw.js', sw); fs.copyFileSync('docs/app.css', css);
+    const port = 8790 + Math.floor(Math.random() * 9);
+    const server = await serve(port, path.resolve('docs'), { '/sw.js': sw, '/app.css': css, '/data/trip.enc.json': data });
+    const ctx = await browser.newContext(); const page = await ctx.newPage();
+    const base = `http://127.0.0.1:${port}/${TEST_HASH}`;
+    const marker = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--test-rev').trim()).catch(() => null);
+    try {
+      await page.goto(base);
+      await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+      await page.reload();
+      await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
+      // Publish a new revision: a different worker REV and a changed stylesheet.
+      fs.writeFileSync(sw, fs.readFileSync(sw, 'utf8').replace(/const REV = '([^']+)'/, "const REV = '$1-next'"));
+      fs.appendFileSync(css, '\n:root { --test-rev: next; }\n');
+      await page.reload();
+      await expect(page.getByRole('status').filter({ hasText: 'Trip updated' })).toBeVisible();
+      await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+      expect(await marker()).toBe(''); // still the old revision, whole
+      await page.reload();
+      await expect(page.getByRole('status').filter({ hasText: 'Trip updated' })).toBeVisible(); // waiting worker offered again
+      expect(await marker()).toBe('');
+      await page.getByRole('button', { name: 'Reload' }).click();
+      await expect.poll(marker, { timeout: 10000 }).toBe('next');
+      await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+    } finally {
+      await ctx.close(); server.close(); fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   test('after one load, the app unlocks and works offline (service worker)', async ({ page, context, browserName }) => {
     test.skip(browserName !== 'chromium', 'Playwright drives service workers reliably only in Chromium; owner checks Safari offline on device (Q9).');
     await unlock(page);
