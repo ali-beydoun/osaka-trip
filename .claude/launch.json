@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "fixture", "runtimeExecutable": "node", "runtimeArgs": ["tests/e2e/serve-fixture.mjs"], "env": { "PORT": "8798" }, "port": 8798 }
+  ]
+}

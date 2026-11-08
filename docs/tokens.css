@@ -1,0 +1,209 @@
+/* Osaka Trip design tokens. Owner: Fable - Osaka Apple design. v1, 8 Nov 2026.
+   Import unchanged. App CSS references tokens only; no literal colours, sizes or durations elsewhere.
+   Values follow the iOS semantic colour system and type scale. Where a value is tuned for WCAG AA on the
+   grouped background it is noted. Reference sources: Apple HIG Color, Typography, Accessibility (June 2026). */
+
+:root {
+  color-scheme: light dark;
+
+  /* ---------- Type ---------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Helvetica Neue", "Hiragino Sans", "Noto Sans JP", Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, "Helvetica Neue", "Hiragino Sans", "Noto Sans JP", Arial, sans-serif;
+  --font-jp: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* 1rem = the Dynamic Type body size (see html rule below). Ratios are iOS Large (default) sizes over 17. */
+  --fs-large-title: clamp(28px, 2rem, 56px);      /* 34 */
+  --fs-title1: clamp(24px, 1.647rem, 48px);       /* 28 */
+  --fs-title2: clamp(20px, 1.294rem, 40px);       /* 22 */
+  --fs-title3: clamp(18px, 1.176rem, 36px);       /* 20 */
+  --fs-headline: 1rem;                             /* 17, semibold */
+  --fs-body: 1rem;                                 /* 17 */
+  --fs-callout: 0.941rem;                          /* 16 */
+  --fs-subheadline: 0.882rem;                      /* 15 */
+  --fs-footnote: 0.765rem;                         /* 13 */
+  --fs-caption1: 0.706rem;                         /* 12 */
+  --fs-caption2: 0.647rem;                         /* 11, the iOS minimum; never smaller */
+
+  --lh-large-title: 1.206; --lh-title1: 1.214; --lh-title2: 1.273; --lh-title3: 1.25;
+  --lh-headline: 1.294; --lh-body: 1.294; --lh-callout: 1.3125; --lh-subheadline: 1.333;
+  --lh-footnote: 1.385; --lh-caption1: 1.333; --lh-caption2: 1.18;
+
+  --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600; --fw-bold: 700;
+  --tracking-large-title: -0.02em; --tracking-title: -0.01em; --tracking-caps: 0.06em;
+
+  --measure: 680px;            /* readable text width */
+  --measure-wide: 820px;       /* two-column content area ceiling */
+
+  /* ---------- Spacing, radii, sizes (px: layout does not scale with text) ---------- */
+  --space-1: 2px; --space-2: 4px; --space-3: 8px; --space-4: 12px; --space-5: 16px;
+  --space-6: 20px; --space-7: 24px; --space-8: 32px; --space-9: 44px;
+  --margin: 16px;              /* compact layout margin */
+  --inset: 16px;               /* grouped list horizontal inset, compact */
+  --cell-pad-x: 16px; --cell-pad-y: 11px;
+  --radius-sm: 8px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 20px; --radius-pill: 999px;
+  --hit: 44px;                 /* minimum hit target, both axes */
+  --hit-gap: 12px;             /* minimum gap between bezeled controls */
+  --nav-h: 44px;               /* inline navigation bar content height */
+  --large-title-h: 52px;       /* large title row below the nav bar */
+  --tabbar-h: 56px;            /* floating tab bar capsule, compact */
+  --tabbar-inset-x: 12px;
+  --tabbar-inset-b: max(8px, env(safe-area-inset-bottom, 0px));
+  --sidebar-w: 280px; --sidebar-w-wide: 300px;
+  --list-col-w: 320px; --list-col-w-wide: 340px; --inspector-w: 360px;
+  --sheet-detent-medium: 50dvh;
+  --icon-inline: 17px; --icon-toolbar: 22px; --icon-tab: 24px; --icon-large: 28px;
+  --icon-stroke: 1.75;
+
+  /* ---------- Motion ---------- */
+  --dur-fast: 150ms; --dur-base: 250ms; --dur-slow: 350ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* ---------- Elevation ---------- */
+  --shadow-float: 0 8px 24px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08);
+  --shadow-sheet: 0 -8px 32px rgba(0,0,0,0.18);
+  --hairline: 0.5px;
+
+  /* ---------- Light appearance ---------- */
+  --bg-grouped: #F2F2F7;                 /* systemGroupedBackground */
+  --bg-grouped-secondary: #FFFFFF;       /* cards, grouped cells */
+  --bg-grouped-tertiary: #F2F2F7;        /* sub-grouping inside a card */
+  --bg-elevated: #FFFFFF;                /* sheets, popovers, inspector */
+  --bg-bar: #F9F9F9;                     /* base for bar material */
+  --label: #000000;
+  --label-secondary: rgba(60,60,67,0.72);  /* iOS uses 0.60; 0.72 gives 4.75:1 on white and 4.5:1 on grouped */
+  --label-tertiary: rgba(60,60,67,0.42);   /* large text and glyphs only */
+  --label-quaternary: rgba(60,60,67,0.18); /* disabled and decorative */
+  --placeholder: rgba(60,60,67,0.40);
+  --separator: rgba(60,60,67,0.29);
+  --separator-opaque: #C6C6C8;
+  --fill: rgba(120,120,128,0.20);
+  --fill-secondary: rgba(120,120,128,0.16);
+  --fill-tertiary: rgba(118,118,128,0.12);
+  --fill-quaternary: rgba(116,116,128,0.08);
+  --tint: #006AD6;                       /* 5.2:1 on white, 4.65:1 on grouped; reads as system blue */
+  --on-tint: #FFFFFF;
+  --tint-soft: rgba(0,106,214,0.10);
+  --tint-pressed: #005AB8;
+  --focus-ring: #006AD6;
+
+  /* Status and category hues: fills are iOS system colours; text variants pass 4.5:1 on white and grouped. */
+  --green: #34C759;   --green-text: #1B7F3B;   --green-soft: rgba(52,199,89,0.16);
+  --orange: #FF9500;  --orange-text: #9A5B00;  --orange-soft: rgba(255,149,0,0.16);
+  --teal: #30B0C7;    --teal-text: #0B6E7F;    --teal-soft: rgba(48,176,199,0.16);
+  --indigo: #5856D6;  --indigo-text: #4341B5;  --indigo-soft: rgba(88,86,214,0.14);
+  --red: #FF3B30;     --red-text: #B3261E;     --red-soft: rgba(255,59,48,0.12);
+  --yellow: #FFCC00;  --yellow-text: #7A5A00;  --yellow-soft: rgba(255,204,0,0.18);
+  --gray: #8E8E93;    --gray-text: rgba(60,60,67,0.72); --gray-soft: rgba(142,142,147,0.16);
+
+  /* Day type colours (fill + label text always paired) */
+  --type-shop: var(--orange);   --type-shop-text: var(--orange-text);
+  --type-sight: var(--indigo);  --type-sight-text: var(--indigo-text);
+  --type-rest: var(--green);    --type-rest-text: var(--green-text);
+  --type-travel: var(--gray);   --type-travel-text: var(--gray-text);
+
+  /* Evidence chips */
+  --ev-certified: var(--green);     --ev-certified-text: var(--green-text);     --ev-certified-soft: var(--green-soft);
+  --ev-claim: var(--orange);        --ev-claim-text: var(--orange-text);        --ev-claim-soft: var(--orange-soft);
+  --ev-menu: var(--teal);           --ev-menu-text: var(--teal-text);           --ev-menu-soft: var(--teal-soft);
+  --ev-friendly: var(--gray);       --ev-friendly-text: var(--gray-text);       --ev-friendly-soft: var(--gray-soft);
+  --ev-fallback: var(--indigo);     --ev-fallback-text: var(--indigo-text);     --ev-fallback-soft: var(--indigo-soft);
+  --ev-no: var(--red);              --ev-no-text: var(--red-text);              --ev-no-soft: var(--red-soft);
+
+  --weekend-wash: rgba(60,60,67,0.06);
+  --today-ring: var(--tint);
+  --material-alpha: 0.72;
+}
+
+/* ---------- Dark appearance ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-grouped: #000000;
+    --bg-grouped-secondary: #1C1C1E;
+    --bg-grouped-tertiary: #2C2C2E;
+    --bg-elevated: #1C1C1E;
+    --bg-bar: #1C1C1E;
+    --label: #FFFFFF;
+    --label-secondary: rgba(235,235,245,0.60);
+    --label-tertiary: rgba(235,235,245,0.38);
+    --label-quaternary: rgba(235,235,245,0.16);
+    --placeholder: rgba(235,235,245,0.30);
+    --separator: rgba(84,84,88,0.60);
+    --separator-opaque: #38383A;
+    --fill: rgba(120,120,128,0.36);
+    --fill-secondary: rgba(120,120,128,0.32);
+    --fill-tertiary: rgba(118,118,128,0.24);
+    --fill-quaternary: rgba(116,116,128,0.18);
+    --tint: #0A84FF;                     /* 5.8:1 on black, 4.7:1 on #1C1C1E */
+    --on-tint: #FFFFFF;
+    --tint-soft: rgba(10,132,255,0.18);
+    --tint-pressed: #409CFF;
+    --focus-ring: #0A84FF;
+    --green: #30D158;  --green-text: #30D158;  --green-soft: rgba(48,209,88,0.18);
+    --orange: #FF9F0A; --orange-text: #FFB340; --orange-soft: rgba(255,159,10,0.18);
+    --teal: #40C8E0;   --teal-text: #5AD2E8;   --teal-soft: rgba(64,200,224,0.18);
+    --indigo: #5E5CE6; --indigo-text: #9C9BFF; --indigo-soft: rgba(94,92,230,0.22);
+    --red: #FF453A;    --red-text: #FF6961;    --red-soft: rgba(255,69,58,0.18);
+    --yellow: #FFD60A; --yellow-text: #FFD60A; --yellow-soft: rgba(255,214,10,0.16);
+    --gray: #8E8E93;   --gray-text: rgba(235,235,245,0.60); --gray-soft: rgba(142,142,147,0.22);
+    --weekend-wash: rgba(255,255,255,0.06);
+    --shadow-float: 0 8px 24px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+    --shadow-sheet: 0 -8px 32px rgba(0,0,0,0.6);
+    --material-alpha: 0.78;
+  }
+}
+:root[data-theme="dark"] {
+  --bg-grouped: #000000; --bg-grouped-secondary: #1C1C1E; --bg-grouped-tertiary: #2C2C2E; --bg-elevated: #1C1C1E; --bg-bar: #1C1C1E;
+  --label: #FFFFFF; --label-secondary: rgba(235,235,245,0.60); --label-tertiary: rgba(235,235,245,0.38); --label-quaternary: rgba(235,235,245,0.16);
+  --placeholder: rgba(235,235,245,0.30); --separator: rgba(84,84,88,0.60); --separator-opaque: #38383A;
+  --fill: rgba(120,120,128,0.36); --fill-secondary: rgba(120,120,128,0.32); --fill-tertiary: rgba(118,118,128,0.24); --fill-quaternary: rgba(116,116,128,0.18);
+  --tint: #0A84FF; --on-tint: #FFFFFF; --tint-soft: rgba(10,132,255,0.18); --tint-pressed: #409CFF; --focus-ring: #0A84FF;
+  --green: #30D158; --green-text: #30D158; --green-soft: rgba(48,209,88,0.18);
+  --orange: #FF9F0A; --orange-text: #FFB340; --orange-soft: rgba(255,159,10,0.18);
+  --teal: #40C8E0; --teal-text: #5AD2E8; --teal-soft: rgba(64,200,224,0.18);
+  --indigo: #5E5CE6; --indigo-text: #9C9BFF; --indigo-soft: rgba(94,92,230,0.22);
+  --red: #FF453A; --red-text: #FF6961; --red-soft: rgba(255,69,58,0.18);
+  --yellow: #FFD60A; --yellow-text: #FFD60A; --yellow-soft: rgba(255,214,10,0.16);
+  --gray: #8E8E93; --gray-text: rgba(235,235,245,0.60); --gray-soft: rgba(142,142,147,0.22);
+  --weekend-wash: rgba(255,255,255,0.06);
+  --shadow-float: 0 8px 24px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4); --shadow-sheet: 0 -8px 32px rgba(0,0,0,0.6);
+  --material-alpha: 0.78;
+}
+
+/* ---------- Increase Contrast ---------- */
+@media (prefers-contrast: more) {
+  :root {
+    --tint: #0040DD; --tint-pressed: #0030B0; --focus-ring: #0040DD;
+    --label-secondary: rgba(60,60,67,0.86);
+    --separator: rgba(60,60,67,0.5);
+    --green-text: #0F5F2A; --orange-text: #7A4700; --teal-text: #075765; --indigo-text: #33318F; --red-text: #8E1A12;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --tint: #409CFF; --tint-pressed: #70B8FF; --focus-ring: #409CFF;
+      --label-secondary: rgba(235,235,245,0.82);
+      --separator: rgba(84,84,88,0.9);
+    }
+  }
+}
+
+/* ---------- Root type: 1rem follows the iOS text size setting in Safari ---------- */
+html {
+  font: -apple-system-body;              /* WebKit: body text style at the user's Dynamic Type size */
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+@supports not (font: -apple-system-body) {
+  html { font-size: 17px; line-height: 1.294; }
+}
+
+/* ---------- Reduced motion and transparency ---------- */
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 1ms; --dur-base: 1ms; --dur-slow: 1ms; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root { --material-alpha: 1; }
+}

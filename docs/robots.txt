@@ -1,0 +1,4 @@
+# Crawling is allowed on purpose so crawlers can read the noindex directives in each page.
+# Blocking here would hide noindex and could still let a bare URL be listed.
+User-agent: *
+Allow: /

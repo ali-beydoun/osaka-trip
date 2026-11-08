@@ -1,0 +1,8 @@
+# Plaintext trip data and keys live in ../osaka-trip-private, never here.
+private/
+*.local.*
+.env*
+node_modules/
+test-results/
+playwright-report/
+.DS_Store

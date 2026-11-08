@@ -1,0 +1,20 @@
+# Public vocabulary that may appear in code. One exact string per line. No trip specifics here.
+Halal certified
+Halal (own claim)
+Halal menu
+Muslim-friendly
+Not halal: fallback
+Fish, prawn or veg options
+Unverified
+Not needed
+Getting around
+getting-around
+What we want
+Shopping zones
+Food zones
+Gardens and temples
+Plan review
+shopping-and-tax-refunds
+know-before-you-go
+what-we-want
+None stated

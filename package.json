@@ -1,0 +1,21 @@
+{
+  "name": "osaka-trip",
+  "private": true,
+  "type": "module",
+  "description": "Private Osaka trip companion web app (encrypted static site on GitHub Pages).",
+  "scripts": {
+    "keys": "node scripts/init-keys.mjs",
+    "build": "cp design/tokens.css docs/tokens.css && node scripts/build-data.mjs",
+    "serve": "node scripts/serve.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check:privacy": "node scripts/check-privacy.mjs",
+    "prepare-data": "node scripts/prepare-trip.mjs",
+    "test:e2e": "playwright test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0"
+  }
+}
