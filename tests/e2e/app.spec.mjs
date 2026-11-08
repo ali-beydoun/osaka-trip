@@ -63,7 +63,7 @@ test.describe('lock screen', () => {
     await page.reload();
     await expect(page.locator('#view-title')).toHaveText('Today');
     await page.goto(url('info/app'));
-    await page.getByRole('button', { name: 'Lock Now' }).click();
+    await page.getByRole('button', { name: 'Lock now' }).click();
     await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
     await page.reload();
     await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
@@ -96,6 +96,7 @@ test.describe('unlocked app', () => {
   test('days list, day detail, previous and next', async ({ page }, testInfo) => {
     await page.goto(url('days'));
     await expect(page.locator('.rhythm-strip a')).toHaveCount(3);
+    if (page.viewportSize().width >= 600) await expect(page.locator('.day-title')).toHaveText('Sample day 2'); // L4 split shows today
     await page.goto(url('days/2030-05-08'));
     await expect(page.locator('.day-title')).toHaveText('Sample day 2');
     for (const t of ['The day', 'Zones', 'End of the day', 'Good to know', 'Questions to settle', 'Sources']) await expect(page.getByRole('heading', { name: t, exact: true })).toBeVisible();
@@ -181,11 +182,12 @@ test.describe('unlocked app', () => {
   test('tab bar or top tabs reach every destination, re-tap pops to root', async ({ page }) => {
     for (const [name, title] of [['Days', 'Days'], ['Food', 'Food'], ['Places', 'Places'], ['Info', 'Info'], ['Today', 'Today']]) {
       await page.getByRole('navigation', { name: /Sections|Trip/ }).filter({ visible: true }).first().getByRole('link', { name, exact: true }).click();
-      await expect(page.locator('#view-title')).toHaveText(title);
+      await expect(page).toHaveTitle(`${title} \u00b7 Osaka Trip`);
     }
-    await page.goto(url('days/2030-05-08'));
+    await page.goto(url('days/2030-05-09'));
+    await expect(page).toHaveTitle(/^Thu 9 May/);
     await page.getByRole('navigation', { name: /Sections|Trip/ }).filter({ visible: true }).first().getByRole('link', { name: 'Days', exact: true }).click();
-    await expect(page.locator('#view-title')).toHaveText('Days');
+    await expect(page).toHaveTitle('Days \u00b7 Osaka Trip');
   });
 
   test('no horizontal page scroll on any destination', async ({ page }) => {
@@ -250,7 +252,7 @@ test.describe('offline', () => {
     await page.goto(url('days/2030-05-08'));
     await expect(page.locator('.day-title')).toHaveText('Sample day 2');
     await page.goto(url('info/app'));
-    await page.getByRole('button', { name: 'Lock Now' }).click();
+    await page.getByRole('button', { name: 'Lock now' }).click();
     await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
     await page.getByRole('button', { name: 'Unlock' }).click();
     await expect(page.locator('#view-title')).toHaveText('Today');
@@ -264,7 +266,8 @@ test.describe('text size (Y2, emulated)', () => {
       await unlock(page);
       for (const v of ['today', 'days/2030-05-08', 'food/halal', 'places', 'info/getting-around', 'info/app']) {
         await page.goto(url(v));
-        await page.evaluate((size) => { document.documentElement.style.setProperty('font-size', `${size}px`, 'important'); window.dispatchEvent(new Event('resize')); }, px);
+        await page.evaluate((size) => { document.documentElement.style.setProperty('font-size', `${size}px`, 'important'); }, px);
+        await page.waitForTimeout(150); // ResizeObserver probe, no resize event (Dynamic Type)
         const r = await page.evaluate(() => ({ over: document.documentElement.scrollWidth - document.documentElement.clientWidth, ax: document.documentElement.hasAttribute('data-ax') }));
         expect(r.over, `${v} at ${px}px`).toBeLessThanOrEqual(1);
         expect(r.ax, `${v} ax flag at ${px}px`).toBe(px >= 23);

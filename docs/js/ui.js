@@ -43,10 +43,19 @@ function applyTier() {
 }
 applyTier();
 window.addEventListener('resize', applyTier);
+// Dynamic Type can change without a resize: watch a 10rem probe.
+if ('ResizeObserver' in window) {
+  const probe = document.createElement('div');
+  probe.className = 'rem-probe';
+  probe.setAttribute('aria-hidden', 'true');
+  document.documentElement.append(probe);
+  new ResizeObserver(() => applyTier()).observe(probe);
+}
 
 // ---------------------------------------------------------------- Lock (S1, U2, U3, U6)
 export function renderLock(opts) {
   document.body.className = 'is-locked';
+  document.title = 'Osaka Trip';
   const status = h('p', { class: 'lock-status', role: 'status', 'aria-live': 'polite' });
   const card = h('main', { class: 'lock', id: 'main' },
     h('div', { class: 'lock-mark', 'aria-hidden': 'true' }, icon('lock')),
@@ -102,7 +111,8 @@ export function renderLock(opts) {
     h('div', { class: 'field-wrap' }, field, eye),
     h('div', { class: 'lock-remember' }, h('label', { for: 'remember' }, 'Keep unlocked on this device'), remember),
     button);
-    card.append(h('p', { class: 'lock-body' }, 'Enter the trip password to open the plan.'), form, status);
+    card.append(h('p', { class: 'lock-body' }, 'Enter the trip password to open the plan.'), form, status,
+      h('p', { class: 'lock-foot' }, 'Both the private link and the password are needed. Nothing is sent to a server.'));
     queueMicrotask(() => field.focus());
   }
   root().replaceChildren(card);
@@ -115,6 +125,7 @@ export function renderApp(c) {
   document.body.className = c.fromUnlock ? 'is-unlocked just-unlocked' : 'is-unlocked';
   if (!c.route.v) { ctx.navigate('today', { replace: true }); c.route = { ...c.route, v: 'today' }; }
   draw({ initial: true });
+  if (c.fromUnlock) { const t = document.getElementById('view-title'); if (t) { t.setAttribute('tabindex', '-1'); t.focus({ preventScroll: true }); } }
   window.addEventListener('scroll', onScroll, { passive: true });
   document.addEventListener('click', offlineGuard, true);
   maybeInstallHint();
@@ -579,11 +590,13 @@ function dayCard(d) {
     icon('chevronRight', null, 'chevron'));
 }
 
+function t0(d) { const t = ctx.trip; return t.days[tripPhase(t.days, now().iso).index].iso; }
+
 function dayRow(d) {
   const today = now().iso === d.iso;
   const r = route();
   return h('li', { class: `row day-row ${today ? 'is-today' : ''}` },
-    link(`days/${d.iso}`, { class: 'row-link', 'aria-current': r.tab === 'days' && r.sub[0] === d.iso ? 'page' : null, 'data-key': `day-${d.iso}` },
+    link(`days/${d.iso}`, { class: 'row-link', 'aria-current': r.tab === 'days' && (r.sub[0] || (!isCompact() && t0(d))) === d.iso ? 'page' : null, 'data-key': `day-${d.iso}` },
       h('span', { class: 'day-badge' }, h('span', { class: 'day-num' }, d.n), h('span', { class: 'day-k', lang: 'ja' }, d.k)),
       h('span', { class: 'row-text' },
         h('span', { class: 'row-sub' }, [d.date, d.wkd ? 'Weekend' : '', today ? 'Today' : ''].filter(Boolean).join(' · ')),
@@ -596,18 +609,20 @@ function dayRow(d) {
 // ---------------------------------------------------------------- Days (S5, S6)
 function viewDays(r) {
   const t = ctx.trip;
-  const i = t.days.findIndex((d) => d.iso === r.sub[0]);
-  const list = [rhythm(i), grouped(t.days.map(dayRow), 'days-list')];
-  if (i < 0) return { title: 'Days', main: list };
+  let i = t.days.findIndex((d) => d.iso === r.sub[0]);
+  const isRoot = i < 0;
+  // Compact: the root is the chart and list. Regular widths: list column plus today's (or the first) day.
+  if (isRoot && isCompact()) return { title: 'Days', main: [rhythm(-1), grouped(t.days.map(dayRow), 'days-list')] };
+  if (isRoot) i = tripPhase(t.days, now().iso).index;
   const d = t.days[i];
   const prev = t.days[i - 1], next = t.days[i + 1];
   const longDate = (x) => new Date(`${x.iso}T12:00:00Z`).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
   return {
-    title: d.date,
+    title: isRoot ? 'Days' : d.date,
     large: false,
     ownH1: true,
-    back: ['days', 'Days'],
-    list: grouped(t.days.map(dayRow), 'days-list'),
+    back: isRoot ? null : ['days', 'Days'],
+    list: [rhythm(i), grouped(t.days.map(dayRow), 'days-list')],
     listLabel: 'Days',
     main: dayDetail(d, i),
     place: findPlace(r.params.get('p')),
@@ -907,7 +922,7 @@ function appSettings() { // S13
     section('Privacy', grouped([
       h('li', { class: 'kv' }, toggleRow('Keep unlocked on this device', p.remember !== false, async (on) => { await ctx.setRemember(on); draw(); })),
     ]), h('p', { class: 'caption' }, 'When on, this device opens the trip without the password. Lock now forgets it.'),
-    h('button', { class: 'btn btn-destructive', type: 'button', onclick: () => ctx.lockNow() }, icon('lock'), 'Lock Now')),
+    grouped([h('li', { class: 'row' }, h('button', { class: 'row-link row-button', type: 'button', onclick: () => ctx.lockNow() }, icon('lock'), h('span', { class: 'row-text' }, h('span', { class: 'row-title tint' }, 'Lock now'))))])),
     section('Maps', grouped([h('li', { class: 'kv' }, h('label', { class: 'kv-label', for: 'maps' }, 'Open places in'),
       h('select', { id: 'maps', class: 'select', 'data-key': 'maps', onchange: (e) => { lastFocus = 'maps'; ctx.setPref('maps', e.target.value); draw(); } },
         h('option', { value: 'google', selected: p.maps !== 'apple' }, 'Google Maps'), h('option', { value: 'apple', selected: p.maps === 'apple' }, 'Apple Maps')))])),

@@ -1,7 +1,7 @@
 /* Osaka Trip app styles. design/tokens.css is loaded first (docs/tokens.css, byte-identical copy).
    Tokens only: no literal colours, font sizes, radii or durations here (contract H5).
    Documented exceptions: 0 values, percentages, hairline offsets, the switch geometry (51x31, iOS),
-   the 16px minimum input font size (stops iOS zoom on focus), the unlock progress duration that matches
+   the 16px minimum input font size (stops iOS zoom on focus), the 13px cap on tab bar labels (Caption 2 is allowed to stay fixed), the unlock progress duration that matches
    the expected key-derivation time, and rgba scrim values per design/01 section 4. */
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -81,6 +81,10 @@ body.is-locked { display: grid; place-items: center; padding: calc(env(safe-area
 .lock-remember { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: var(--hit); font-size: var(--fs-subheadline); }
 .lock-status { min-height: 1.4em; margin: 0; color: var(--red-text); font-size: var(--fs-footnote); line-height: var(--lh-footnote); }
 .lock-status:empty { min-height: 0; }
+.lock-foot { margin: 0; color: var(--label-secondary); font-size: var(--fs-footnote); line-height: var(--lh-footnote); }
+.rem-probe { position: absolute; width: 10rem; height: 0; visibility: hidden; pointer-events: none; }
+.row-button { width: 100%; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; }
+.row-button > .icon { color: var(--tint); font-size: var(--icon-toolbar); }
 
 /* ---------- Shell, navigation bar ---------- */
 body.just-unlocked .shell { animation: fade-in var(--dur-base) var(--ease-decelerate); }
@@ -107,7 +111,7 @@ body.just-unlocked .shell { animation: fade-in var(--dur-base) var(--ease-decele
 
 /* ---------- Floating tab bar (compact) ---------- */
 .tabbar { position: fixed; z-index: 30; left: max(var(--tabbar-inset-x), env(safe-area-inset-left, 0px)); right: max(var(--tabbar-inset-x), env(safe-area-inset-right, 0px)); bottom: var(--tabbar-inset-b); display: flex; height: var(--tabbar-h); padding: var(--space-1); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--bg-bar) calc(var(--material-alpha) * 100%), transparent); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: var(--shadow-float); }
-.tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: var(--hit); border-radius: var(--radius-pill); color: var(--label-secondary); font-size: var(--fs-caption2); line-height: var(--lh-caption2); font-weight: var(--fw-semibold); transition: background-color var(--dur-base) var(--ease-standard); }
+.tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: var(--hit); border-radius: var(--radius-pill); color: var(--label-secondary); font-size: min(var(--fs-caption2), 13px); line-height: var(--lh-caption2); font-weight: var(--fw-semibold); transition: background-color var(--dur-base) var(--ease-standard); }
 .tab .icon { font-size: var(--icon-tab); }
 .tab[aria-current="page"] { color: var(--tint); background: var(--tint-soft); }
 .tab:active { opacity: 0.6; }
@@ -241,7 +245,7 @@ body.just-unlocked .shell { animation: fade-in var(--dur-base) var(--ease-decele
 .rhythm .group-title { padding: 0 var(--space-5); }
 .rhythm-scroll { overflow-x: auto; scrollbar-width: none; padding: 0 var(--space-3); }
 .rhythm-scroll::-webkit-scrollbar { display: none; }
-.rhythm-strip { display: grid; grid-template-columns: repeat(11, minmax(var(--hit), 1fr)); gap: 2px; margin: 0; padding: 0; list-style: none; }
+.rhythm-strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(var(--hit), 1fr); gap: 2px; margin: 0; padding: 0; list-style: none; }
 .rhythm-day a { position: relative; display: grid; justify-items: center; align-content: end; gap: var(--space-1); min-height: 96px; padding: var(--space-2) 0; border-radius: var(--radius-sm); color: var(--label); }
 .rhythm-day.wkd a { background: var(--weekend-wash); }
 .rhythm-day a[aria-current="page"] { background: var(--tint-soft); }
@@ -363,7 +367,7 @@ html[data-short] { --tabbar-h: 49px; --tabbar-inset-b: var(--space-2); }
 html[data-short] .large-title { font-size: var(--fs-title2); padding-bottom: var(--space-2); }
 html[data-short] .quick-btn { flex-direction: row; min-height: var(--hit); }
 @media (max-height: 500px) and (min-width: 700px) {
-  html:not([data-ax]) .day-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: var(--space-6); align-items: start; }
+  html:not([data-ax]) .columns:not(:has(.list-col)) .day-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: var(--space-6); align-items: start; }
 }
 
 /* ---------- Regular widths (L4) ---------- */
