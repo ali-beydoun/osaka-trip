@@ -12,9 +12,12 @@ const profile = JSON.parse(read('trip-profile.local.json'));
 const deny = read('denylist.local.txt').split('\n').map((s) => s.trim()).filter((s) => s && !s.startsWith('#'));
 const md = read('source-exports/Osaka Trip 2026.md');
 
+// denylist.local.txt keeps every private string out of the repository (check-privacy.mjs).
+// The encrypted payload keeps booking references (owner decision, 8 Nov 2026) and drops only private Claude links.
+const payloadRedactions = deny.filter((d) => d.includes('claude.ai/'));
 function redact(text) {
   let t = text.replace(/\[([^\]]+)\]\(https:\/\/claude\.ai\/[^)]*\)/g, '$1'); // drop private Claude links, keep label
-  for (const d of deny) t = t.split(d).join(`(${profile.redact_with})`);
+  for (const d of payloadRedactions) t = t.split(d).join('');
   return t;
 }
 
@@ -71,7 +74,40 @@ const trip = {
   doc,
 };
 
+// Owner corrections (owner-updates.local.json): exact replacements that must each match exactly once.
+const updates = fs.existsSync(path.join(PRIVATE_DIR, 'owner-updates.local.json')) ? JSON.parse(read('owner-updates.local.json')) : { replace: [], replace_exact_fields: [], to_book: [] };
+let body = JSON.stringify(trip.days);
+for (const [from, to] of updates.replace || []) {
+  const n = body.split(from).length - 1;
+  if (n !== 1) throw new Error(`Owner update expected one match, found ${n} (length ${from.length}).`);
+  body = body.replace(from, to);
+}
+trip.days = JSON.parse(body);
+for (const f of updates.replace_exact_fields || []) {
+  let obj = trip.days.find((d) => d.iso === f.day);
+  const last = f.path[f.path.length - 1];
+  for (const k of f.path.slice(0, -1)) obj = obj[k];
+  if (obj[last] !== f.from) throw new Error(`Owner field update did not match on ${f.day}.`);
+  obj[last] = f.to;
+}
+
+// To book: the owner's transfer items, then restaurants by what their own booking note says.
+// needs: the note asks for a booking or a lead time. optional: bookable, but walk-in is not ruled out.
+const NEEDS = /\b(required|book (now|ahead|by)|\d+ days? ahead|by (mon|tue|wed|thu|fri|sat|sun)\b)/i;
+const CAN = /\b(book|bookings? taken|tablecheck|tabelog|online|reserv|tel |phone|call)\b/i;
+const toBook = (updates.to_book || []).map((x) => ({ ...x, need: 'needs' }));
+const seen = new Set();
+trip.days.forEach((d) => d.zones.forEach((z) => (z.eat || []).forEach((it) => {
+  const b = it.booking || '';
+  const need = NEEDS.test(b) ? 'needs' : (CAN.test(b) && !/^walk[- ]?in\b|^no\b|^none\b/i.test(b.trim()) ? 'optional' : null);
+  const key = `${d.iso}|${it.name}`;
+  if (!need || seen.has(key)) return;
+  seen.add(key);
+  toBook.push({ id: `eat-${d.iso}-${it.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, title: it.name, day: d.iso, kind: 'restaurant', need, detail: b, maps_query: it.maps_query });
+})));
+trip.to_book = { note: 'Only the flights and hotels are booked. Nothing on this list is booked yet (owner, 8 Nov 2026).', items: toBook };
+
 const json = JSON.stringify(trip, null, 1);
-for (const d of deny) if (json.includes(d)) throw new Error('Redaction failed: a denylisted string remains in the payload.');
+for (const d of payloadRedactions) if (json.includes(d)) throw new Error('Redaction failed: a private Claude link remains in the payload.');
 fs.writeFileSync(TRIP_FILE, json + '\n', { mode: 0o600 });
 console.log(`trip.json written: ${days.length} days, ${planner.bakeries.length} bakeries, ${planner.halal.places.length} halal places, ${planner.halal.prayer.length} prayer rooms, ${doc.sections.length} document sections.`);

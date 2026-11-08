@@ -518,6 +518,43 @@ function toggleRow(label, checked, onChange) {
     h('input', { id, type: 'checkbox', role: 'switch', class: 'switch', checked, 'data-key': id, onchange: (e) => { lastFocus = id; onChange(e.target.checked); } }));
 }
 
+// ---------------------------------------------------------------- To book (owner: only flights and hotels are booked)
+function toBook() { return (ctx.trip.to_book && ctx.trip.to_book.items) || []; }
+function dayOf(iso) { return ctx.trip.days.find((d) => d.iso === iso); }
+
+function bookRow(it) {
+  const key = `booked:${it.id}`;
+  const done = ctx.prefs[key] === true;
+  const d = dayOf(it.day);
+  const id = `bk-${it.id}`;
+  return h('li', { class: `book-row ${done ? 'is-done' : ''}` },
+    h('input', { type: 'checkbox', id, class: 'book-check', checked: done, 'data-key': id, onchange: (e) => { lastFocus = id; ctx.setPref(key, e.target.checked); draw(); } }),
+    h('label', { for: id, class: 'row-text' },
+      h('span', { class: 'row-title' }, it.title),
+      h('span', { class: 'row-sub' }, [d ? d.date : it.day, it.deadline ? `book by ${it.deadline}` : ''].filter(Boolean).join(' \u00b7 ')),
+      h('span', { class: 'row-meta' }, it.detail),
+      h('span', { class: 'row-meta' }, done ? 'Marked booked on this device' : 'Not booked yet')),
+    d ? link(`days/${d.iso}`, { class: 'row-go', 'aria-label': `Open ${d.date}` }, icon('calendar')) : null);
+}
+
+function toBookView() {
+  const items = toBook();
+  const needs = items.filter((x) => x.need === 'needs');
+  const optional = items.filter((x) => x.need !== 'needs');
+  return [
+    h('p', { class: 'caption' }, ctx.trip.to_book ? ctx.trip.to_book.note : ''),
+    section('Needs booking', grouped(needs.map(bookRow), 'book-list')),
+    optional.length ? section('Can be booked if you choose it', h('details', { class: 'disclosure' }, h('summary', null, `${optional.length} restaurants that take bookings`), grouped(optional.map(bookRow), 'book-list'))) : null,
+    h('p', { class: 'caption' }, 'Ticks are saved on this device only. Tell the trip app owner what you booked so the plan can be updated for everyone.'),
+  ];
+}
+
+function notBookedNote(iso) {
+  const open = toBook().filter((x) => x.day === iso && x.need === 'needs' && ctx.prefs[`booked:${x.id}`] !== true);
+  if (!open.length) return null;
+  return h('p', { class: 'callout warn' }, icon('warning'), h('span', null, h('strong', null, 'Not booked yet: '), open.map((x) => x.title).join('; '), ' ', link('info/to-book', { class: 'text-btn small inline' }, 'To book')));
+}
+
 // ---------------------------------------------------------------- Today (S2, S3, S4)
 function viewToday() {
   const t = ctx.trip;
@@ -532,6 +569,7 @@ function viewToday() {
         h('p', { class: 'hero-number' }, String(ph.daysToGo)),
         h('p', { class: 'hero-label' }, ph.daysToGo === 1 ? 'day to go' : 'days to go'),
         h('p', { class: 'meta' }, `${t.days[0].date} to ${t.days[t.days.length - 1].date}, Tokyo time`)),
+      section('To book', grouped(toBook().filter((x) => x.need === 'needs').slice(0, 6).map(bookRow), 'book-list'), link('info/to-book', { class: 'text-btn' }, 'All bookings to make')),
       docSection('next-up', 'Next up'),
       section('First day', dayCard(day)),
       section('Before you go', grouped([pushRow('info/bookings', 'Bookings'), pushRow('info/getting-around', 'Getting around'), pushRow('info/shopping-and-tax-refunds', 'Tax-free shopping')])),
@@ -550,6 +588,8 @@ function viewToday() {
       focus !== null && focus !== undefined ? zoneNowCard(day, day.zones[focus], nn.now === focus ? 'Now' : 'Next')
         : h('section', { class: 'now-card', 'aria-label': 'Today’s plan' }, h('p', { class: 'eyebrow' }, nn.done ? 'Plan done' : 'Today’s plan'), h('p', { class: 'body' }, nn.done ? 'That’s today’s plan done. Time to head back.' : day.summary)),
       quickActions(day),
+      notBookedNote(day.iso),
+      tomorrow ? notBookedNote(tomorrow.iso) : null,
       day.open ? h('p', { class: 'callout' }, icon('question'), h('span', null, h('strong', null, 'To decide: '), day.open)) : null,
       section('Rest of today', grouped(day.zones.map((z, i) => h('li', { class: `row ${i === nn.now ? 'is-now' : ''}` },
         link(`days/${day.iso}`, { class: 'row-link', 'data-key': `zone-${i}` },
@@ -674,6 +714,7 @@ function dayDetail(d, i) {
   return h('div', { class: 'day-detail' },
     header,
     h('p', { class: 'body lead' }, d.summary),
+    notBookedNote(d.iso),
     d.open ? h('p', { class: 'callout' }, icon('question'), h('span', null, h('strong', null, 'To decide: '), d.open)) : null,
     h('div', { class: 'day-grid' },
       section('The day', h('ol', { class: 'flow' }, d.flow.map((f) => h('li', { class: `flow-item lvl-${f.level}` },
@@ -836,7 +877,7 @@ function guides() {
 }
 
 function infoTitle(id) {
-  const fixed = { hotel: 'Hotel', 'getting-around': 'Getting around', bookings: 'Bookings', airport: 'Airport day', 'shopping-and-tax-refunds': 'Tax-free shopping', guides: 'Guides', decisions: 'Decisions', 'next-up': 'Next up', 'what-we-want': 'What we want', sources: 'Sources', app: 'App', taxi: 'Taxi card' };
+  const fixed = { 'to-book': 'To book', hotel: 'Hotel', 'getting-around': 'Getting around', bookings: 'Bookings', airport: 'Airport day', 'shopping-and-tax-refunds': 'Tax-free shopping', guides: 'Guides', decisions: 'Decisions', 'next-up': 'Next up', 'what-we-want': 'What we want', sources: 'Sources', app: 'App', taxi: 'Taxi card' };
   if (fixed[id]) return fixed[id];
   const s = docSec(id);
   return s ? s.title : 'Info';
@@ -844,12 +885,12 @@ function infoTitle(id) {
 
 function viewInfo(r) {
   const id = r.sub[0];
-  const rows = (ids) => grouped(ids.filter((x) => ['hotel', 'airport', 'guides', 'app'].includes(x) || (docSec(x) && docSec(x).md.trim())).map((x) => pushRow(`info/${x}`, infoTitle(x))));
+  const rows = (ids) => grouped(ids.filter((x) => ['hotel', 'airport', 'guides', 'app', 'to-book'].includes(x) || (docSec(x) && docSec(x).md.trim())).map((x) => pushRow(`info/${x}`, infoTitle(x))));
   const list = [
     section('Stay', grouped([pushRow('info/hotel', 'Hotel', ctx.trip.hotel.name),
       h('li', { class: 'row' }, link('info/taxi', { class: 'row-link', 'data-key': 'show-taxi' }, h('span', { class: 'row-text' }, h('span', { class: 'row-title tint' }, 'Show taxi card')), icon('car', null, 'chevron'))),
       h('li', { class: 'row' }, ext(dirUrl(ctx.trip.hotel.maps_query, 'transit'), [h('span', { class: 'row-text' }, h('span', { class: 'row-title tint' }, 'Back to the hotel')), icon('arrowOut', null, 'chevron')], { class: 'row-link' }))])),
-    section('Travel', rows(['getting-around', 'bookings', 'airport', 'shopping-and-tax-refunds'])),
+    section('Travel', rows(['to-book', 'getting-around', 'bookings', 'airport', 'shopping-and-tax-refunds'])),
     section('Plan', rows(['guides', 'decisions', 'next-up', 'what-we-want', 'sources'])),
     section('App', rows(['app'])),
   ];
@@ -859,6 +900,7 @@ function viewInfo(r) {
   else if (id === 'taxi') return { title: 'Info', main: list, overlay: taxiCard() };
   else if (id === 'app') main = appSettings();
   else if (id === 'airport') main = airportDay();
+  else if (id === 'to-book') main = toBookView();
   else if (id === 'guides') main = r.sub[1] ? docView(r.sub[1]) : grouped(guides().map((s) => pushRow(`info/guides/${s.id}`, s.title)));
   else main = docView(id);
   const title = id === 'guides' && r.sub[1] ? infoTitle(r.sub[1]) : infoTitle(id);

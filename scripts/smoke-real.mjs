@@ -30,7 +30,7 @@ for (const viewport of [{ width: 393, height: 852 }, { width: 1366, height: 1024
   await page.reload();
   await page.waitForSelector('#view-title', { state: 'attached' });
   const days = await page.evaluate(() => [...new Set([...document.querySelectorAll('a[href*="v=days%2F"]')].map((a) => new URLSearchParams(a.hash.slice(1)).get('v')))]);
-  const views = ['today', 'days', ...days, 'food/bakeries', 'food/breakfast', 'food/pancakes', 'food/halal', 'places?k=stops', 'places?k=shop', 'places?k=sweet', 'places?k=eat', 'places?k=eat&by=area', 'info', 'info/hotel', 'info/getting-around', 'info/bookings', 'info/airport', 'info/shopping-and-tax-refunds', 'info/guides', 'info/decisions', 'info/next-up', 'info/what-we-want', 'info/sources', 'info/app'];
+  const views = ['today', 'days', ...days, 'food/bakeries', 'food/breakfast', 'food/pancakes', 'food/halal', 'places?k=stops', 'places?k=shop', 'places?k=sweet', 'places?k=eat', 'places?k=eat&by=area', 'info', 'info/hotel', 'info/to-book', 'info/getting-around', 'info/bookings', 'info/airport', 'info/shopping-and-tax-refunds', 'info/guides', 'info/decisions', 'info/next-up', 'info/what-we-want', 'info/sources', 'info/app'];
   const groups = await page.evaluate(() => fetch('data/trip.enc.json').then(() => null));
   let overflow = 0, empty = 0, rows = 0;
   for (const v of views) {

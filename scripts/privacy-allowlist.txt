@@ -18,3 +18,8 @@ shopping-and-tax-refunds
 know-before-you-go
 what-we-want
 None stated
+Not booked yet
+restaurant
+transfer-arrival
+transfer-departure
+Only the flights and hotels are booked. Nothing on this list is booked yet (owner, 8 Nov 2026).

@@ -290,3 +290,17 @@ test('no uncaught errors through unlock and rapid navigation', async ({ page }) 
   await page.waitForTimeout(800);
   expect(errors).toEqual([]);
 });
+
+test('to book: not-booked notes, list and device-only ticks', async ({ page }) => {
+  await unlock(page);
+  await expect(page.locator('.callout.warn')).toContainText('Not booked yet: Sample Fish Bar ba');
+  await page.goto(url('info/to-book'));
+  await expect(page.getByText('Only the flights and hotels are booked.')).toBeVisible();
+  const tick = page.getByRole('checkbox', { name: /Sample Fish Bar ba/ });
+  await tick.click();
+  await expect(page.getByRole('checkbox', { name: /Sample Fish Bar ba/ })).toBeChecked();
+  await page.goto(url('days/2030-05-08'));
+  await expect(page.locator('.callout.warn')).toHaveCount(0);
+  await page.goto(url('today', 'asof=2030-05-03'));
+  await expect(page.getByRole('checkbox', { name: /Sample airport transfer in/ })).not.toBeChecked();
+});

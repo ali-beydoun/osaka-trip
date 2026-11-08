@@ -34,6 +34,11 @@ export const fixture = {
     dayGroup: { '2030-05-07': 'umeda', '2030-05-08': 'umeda', '2030-05-09': 'nara' },
     as_of: '1 May 2030',
   },
+  to_book: { note: 'Only the flights and hotels are booked. Nothing on this list is booked yet.', items: [
+    { id: 'transfer-arrival', title: 'Sample airport transfer in', day: '2030-05-07', kind: 'transfer', need: 'needs', detail: 'Sample transfer note.' },
+    { id: 'eat-1', title: 'Sample Fish Bar ba', day: '2030-05-08', kind: 'restaurant', need: 'needs', detail: 'Book 2 days ahead (sample).' },
+    { id: 'eat-2', title: 'Sample Grill ba', day: '2030-05-08', kind: 'restaurant', need: 'optional', detail: 'Online booking (sample).' },
+  ] },
   doc: { intro: 'Sample intro for the trip.', sections: [
     { id: 'next-up', level: 2, title: 'Next up', md: '- [ ] Sample task one\n- [x] Sample task done' },
     { id: 'getting-around', level: 3, title: 'Getting around', md: 'Sample text.\n\n| Trip | How | Time |\n| --- | --- | --- |\n| A to B | **Train** [link](https://example.com) | 10 min |' },

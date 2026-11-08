@@ -435,3 +435,13 @@ html[data-ax] .md-row-fields { grid-template-columns: minmax(0, 1fr); }
 @media print {
   .tabbar, .sidebar, .navbar, .go-row, .quick { display: none !important; }
 }
+
+/* To book */
+.book-list > li.book-row { display: flex; align-items: flex-start; gap: var(--space-4); min-height: var(--hit); padding: var(--cell-pad-y) var(--cell-pad-x); }
+.book-check { flex: none; width: 24px; height: 24px; margin: 2px 0 0; accent-color: var(--green); }
+.book-row label { cursor: pointer; }
+.book-row.is-done .row-title { color: var(--label-secondary); text-decoration: line-through; }
+.book-row .row-go { margin-right: calc(var(--space-2) * -1); }
+.callout.warn { background: var(--yellow-soft); }
+.callout.warn > .icon { color: var(--yellow-text); }
+.text-btn.inline { display: inline; min-height: 0; font-size: inherit; }
