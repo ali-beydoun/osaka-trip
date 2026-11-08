@@ -222,6 +222,39 @@ test.describe('unlocked app', () => {
   });
 });
 
+test.describe('Home Screen install (emulated; real iOS stays on the owner checklist)', () => {
+  test('manifest keeps the current address and the private link survives unlock and Lock now', async ({ page, request }) => {
+    const manifest = await (await request.get('/manifest.webmanifest')).json();
+    expect(manifest.start_url).toBeUndefined();
+    expect(manifest).toMatchObject({ scope: '/', display: 'standalone' });
+    await unlock(page);
+    expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get('k')).toBe(TEST_HASH.match(/k=([^&]+)/)[1]);
+    await page.goto(url('info/app'));
+    await page.getByRole('button', { name: 'Lock now' }).click();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+    expect(page.url()).toContain(TEST_HASH.split('&')[0]);
+  });
+
+  test('first standalone launch with separate storage: link kept asks for password; link dropped recovers by paste', async ({ browser }) => {
+    for (const dropped of [false, true]) {
+      const ctx = await browser.newContext();
+      await ctx.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+      const page = await ctx.newPage();
+      await page.goto(dropped ? '/' : url());
+      if (dropped) {
+        await page.getByLabel('Private trip link').fill(`https://osaka.example/${TEST_HASH}`);
+        await page.getByRole('button', { name: 'Continue' }).click();
+      }
+      await page.getByLabel('Password', { exact: true }).fill(TEST_PASSWORD);
+      await page.getByRole('button', { name: 'Unlock' }).click();
+      await expect(page.locator('#view-title')).toHaveText('Today');
+      await page.reload();
+      await expect(page.locator('#view-title')).toHaveText('Today');
+      await ctx.close();
+    }
+  });
+});
+
 test.describe('privacy and indexing', () => {
   test('noindex on index and 404; robots.txt allows crawling; no plaintext in the data file', async ({ page, request }) => {
     await page.goto('/');
