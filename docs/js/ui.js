@@ -165,6 +165,7 @@ function transition(dir, fn) {
   document.documentElement.dataset.nav = dir;
   const t = document.startViewTransition(fn);
   t.ready.catch(() => {}); // a newer navigation may abort this one; that is fine
+  t.updateCallbackDone.catch(() => {});
   t.finished.catch(() => {}).finally(() => { delete document.documentElement.dataset.nav; });
 }
 

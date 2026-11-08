@@ -275,3 +275,18 @@ test.describe('text size (Y2, emulated)', () => {
     });
   }
 });
+
+test('no uncaught errors through unlock and rapid navigation', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await unlock(page);
+  for (const name of ['Days', 'Food', 'Places', 'Info', 'Today', 'Days']) {
+    await page.getByRole('navigation', { name: /Sections|Trip/ }).filter({ visible: true }).first().getByRole('link', { name, exact: true }).click();
+  }
+  await page.goto(url('days/2030-05-07'));
+  await page.getByRole('button', { name: /^Next day/ }).click();
+  await page.getByRole('button', { name: /^Next day/ }).click();
+  await page.goBack(); await page.goBack(); await page.goForward();
+  await page.waitForTimeout(800);
+  expect(errors).toEqual([]);
+});

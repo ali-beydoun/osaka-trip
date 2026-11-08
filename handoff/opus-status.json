@@ -10,9 +10,9 @@
   "updated": "2026-11-08",
   "state": {
     "started": true,
-    "designed": "design/ v1 (Fable) implemented; preliminary HIG findings fixed; full review in progress",
+    "designed": "design/ v1 (Fable) implemented; Fable full review and re-review ACCEPTED on c1389c8; remaining evidence is the owner device checklist (handbook/qa.md)",
     "built": true,
-    "tested": "unit 11/11; Playwright 121 passed, 5 skipped (offline Chromium-only); real-data headless smoke 34 views x 2 viewports clean",
+    "tested": "unit 11/11; Playwright 127 passed, 5 skipped (offline Chromium-only), incl. no uncaught errors through unlock and navigation; real-data headless smoke 34 views x 2 viewports clean",
     "published": "GitHub Pages built from main:/docs (commit 39af348), verified at GitHub edge with custom host; live domain waits on DNS CNAME osaka -> ali-beydoun.github.io (owner action), then Enforce HTTPS"
   },
   "repo": "https://github.com/ali-beydoun/osaka-trip",
