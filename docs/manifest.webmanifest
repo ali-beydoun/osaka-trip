@@ -1,7 +1,6 @@
 {
   "name": "Osaka Trip",
   "short_name": "Osaka",
-  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#F2F2F7",

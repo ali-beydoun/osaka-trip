@@ -28,7 +28,7 @@ An unlisted, password-protected trip app on free static hosting (GitHub Pages), 
 
 - Never commit, print, paste or screenshot: the password, `keys.local.json`, `access-link.local.txt`, or anything in `../osaka-trip-private/`.
 - `npm run check:privacy` scans every repo file against all private strings and key material, without printing them. The pre-commit hook runs it.
-- Booking references and private Claude links are redacted from the payload (`denylist.local.txt`).
+- Booking references stay inside the encrypted payload only (owner decision); private Claude links and denylisted strings are stripped (`denylist.local.txt`).
 - Government IDs, passports and booking PDFs are never imported.
 
 ## Home Screen (PWA) notes
