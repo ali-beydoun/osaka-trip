@@ -108,11 +108,20 @@ test.describe('unlocked app', () => {
 
   test('place detail opens from a day and Back dismisses it first', async ({ page }, testInfo) => {
     await page.goto(url('days/2030-05-08'));
-    await page.getByRole('link', { name: /Sample Garden ba/ }).click();
+    await page.locator('.row-link', { hasText: 'Sample Garden ba' }).click();
     const detail = page.locator('.sheet, .inspector').filter({ hasText: 'Sample Garden ba' });
     await expect(detail.getByRole('heading', { name: 'Sample Garden ba' })).toBeVisible();
     await expect(detail.getByRole('link', { name: 'Walk to Sample Garden ba' })).toHaveAttribute('href', /google\.com\/maps\/dir\/.*travelmode=walking/);
     await shot(page, testInfo, 'place-sheet');
+    if (await page.locator('.sheet').count()) {
+      await expect(page.locator('.sheet')).toHaveAttribute('aria-labelledby', 'place-title');
+      await expect(page.getByRole('button', { name: 'Close details' })).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(page.locator('.sheet')).toHaveCount(0);
+      await expect(page.locator('.row-link', { hasText: 'Sample Garden ba' }).first()).toBeFocused();
+      await page.locator('.row-link', { hasText: 'Sample Garden ba' }).first().click();
+      await expect(page.locator('.sheet')).toHaveCount(1);
+    }
     await page.goBack();
     await expect(page.locator('.sheet')).toHaveCount(0);
     await expect(page.locator('.day-title')).toHaveText('Sample day 2');

@@ -25,6 +25,7 @@ const tabStack = {}; // N3: last route per tab
 const scrollMemory = new Map(); // N3/L7: scroll per route
 let lastV = '';
 let lastFocus = null;
+let sheetOpener = null; // data-key of the row that opened the current place detail
 
 // ---------------------------------------------------------------- Tier (L1)
 function applyTier() {
@@ -203,15 +204,17 @@ function draw({ dir, initial } = {}) {
       h('div', { class: 'columns' },
         view.list ? h('section', { class: 'list-col', 'aria-label': view.listLabel || 'List' }, view.list) : null,
         h('main', { id: 'main', class: 'main-col', tabindex: '-1', 'aria-labelledby': 'view-title' },
-          view.large !== false ? h('h1', { class: 'large-title', id: 'view-title' }, view.title) : h('h1', { class: 'sr-only', id: 'view-title' }, view.title),
+          view.ownH1 ? null : view.large !== false ? h('h1', { class: 'large-title', id: 'view-title' }, view.title) : h('h1', { class: 'sr-only', id: 'view-title' }, view.title),
           now().simulated ? h('p', { class: 'banner', role: 'note' }, `Viewing as ${now().iso} ${fmtMin(now().minutes)} Tokyo time`) : null,
           view.main),
         view.inspector ? inspectorPane(place, view.emptyText) : place ? sheetPane(place) : null)),
     tabbar(r.tab),
     view.overlay || null);
   root().replaceChildren(shell);
-  if (!inspector && place && !view.inspector) trapSheet();
-  if (isCompact() && view.inspector && place) trapSheet();
+  const prevPlace = sheetOpener !== null;
+  if (place && !prevPlace) sheetOpener = lastFocus || '';
+  if (!place && prevPlace) { lastFocus = sheetOpener || null; sheetOpener = null; }
+  if (place) trapSheet();
   document.title = view.title ? `${view.title} · Osaka Trip` : 'Osaka Trip';
   lastV = ctx.route.v;
   // Scroll and focus (N3, N6, L7)
@@ -220,7 +223,11 @@ function draw({ dir, initial } = {}) {
   else if (dir === 'pop' && saved !== undefined) window.scrollTo(0, saved);
   onScroll();
   if (!initial) {
-    const target = (lastFocus && document.querySelector(`[data-key="${CSS.escape(lastFocus)}"]`)) || (dir === 'push' || dir === 'swap' ? document.getElementById('view-title') : null);
+    const detailFocus = place && document.querySelector('.sheet-close, .inspector .place-title');
+    const target = (detailFocus && !document.querySelector('.inspector') ? detailFocus : null)
+      || (place && document.querySelector('.inspector') ? document.querySelector('.inspector .place-title') : null)
+      || (lastFocus && document.querySelector(`[data-key="${CSS.escape(lastFocus)}"]`)) || (dir === 'push' || dir === 'swap' ? document.getElementById('view-title') : null);
+    if (target && target.classList.contains('place-title')) target.setAttribute('tabindex', '-1');
     if (target) { if (target.id === 'view-title') target.setAttribute('tabindex', '-1'); target.focus({ preventScroll: true }); }
     lastFocus = null;
   }
@@ -284,12 +291,11 @@ function sidebar(r) {
 // ---------------------------------------------------------------- Sheet and inspector (S7, A6)
 function sheetPane(place) {
   const close = () => go(withParam(ctx.route.v, 'p', null));
-  const pane = h('aside', { class: 'sheet', 'aria-label': `Details: ${place.name}`, role: 'dialog', 'aria-modal': isCompact() ? 'true' : null, tabindex: '-1', 'data-detent': 'medium' },
+  const pane = h('aside', { class: 'sheet', 'aria-labelledby': 'place-title', role: 'dialog', 'aria-modal': isCompact() ? 'true' : null, tabindex: '-1', 'data-detent': 'medium' },
     h('div', { class: 'sheet-head' },
       h('div', { class: 'grabber-hit', 'aria-hidden': 'true' }, h('span', { class: 'grabber' })),
       h('button', { class: 'icon-btn sheet-close', type: 'button', 'aria-label': 'Close details', onclick: close }, icon('xmark'))),
     placeDetail(place));
-  pane.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   dragSheet(pane, close);
   return [h('div', { class: 'scrim', 'aria-hidden': 'true', onclick: close }), pane];
 }
@@ -297,13 +303,20 @@ function sheetPane(place) {
 function inspectorPane(place, emptyText) {
   if (!place) return h('aside', { class: 'inspector is-empty', 'aria-label': 'Details' }, h('div', { class: 'inspector-empty' }, icon('pin'), h('p', null, emptyText || 'Choose a place to see its details.')));
   if (isCompact()) return sheetPane(place);
-  return h('aside', { class: 'inspector', 'aria-label': `Details: ${place.name}`, tabindex: '-1' }, placeDetail(place));
+  return h('aside', { class: 'inspector', 'aria-labelledby': 'place-title', tabindex: '-1' }, placeDetail(place));
 }
+
+// Escape closes an open place detail from anywhere (A6).
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !ctx || !route().params.get('p')) return;
+  if (document.querySelector('.taxi')) return;
+  e.preventDefault();
+  go(withParam(ctx.route.v, 'p', null));
+});
 
 function trapSheet() {
   const pane = document.querySelector('.sheet');
   if (!pane) return;
-  if (isCompact()) pane.focus({ preventScroll: true });
   pane.addEventListener('keydown', (e) => {
     if (e.key !== 'Tab' || !isCompact()) return;
     const f = [...pane.querySelectorAll('a[href], button:not([disabled]), summary, input, select')];
@@ -410,7 +423,8 @@ function placeRow(it, v) {
         sub.filter(Boolean).length ? h('span', { class: 'row-sub' }, sub.filter(Boolean).join(' · ')) : null,
         it.what || it.signature ? h('span', { class: 'row-sub clamp' }, it.what || it.signature) : null,
         badge ? h('span', { class: 'row-chips' }, badge) : null,
-        walkCaption(it) ? h('span', { class: 'row-meta' }, walkCaption(it)) : it.opens ? h('span', { class: 'row-meta' }, `Opens ${it.opens}`) : null)));
+        walkCaption(it) ? h('span', { class: 'row-meta' }, walkCaption(it)) : it.opens ? h('span', { class: 'row-meta' }, `Opens ${it.opens}`) : null)),
+    ext(dirUrl(it.maps_query || it.name, it.mode || (walkCaption(it) ? 'walking' : 'transit')), icon('arrowOut'), { class: 'row-go', 'aria-label': `Directions to ${it.name}` }));
 }
 
 function pushRow(v, title, sub, extra) {
@@ -432,7 +446,7 @@ function placeDetail(it) { // S7: the row expanded, nothing new
   const kindLabel = { stops: 'See', shop: 'Shop', sweet: 'Something sweet', eat: 'Eat', bakery: 'Bakery', halal: 'Halal food', prayer: 'Prayer room' }[it.kind];
   return h('article', { class: 'place' },
     h('p', { class: 'eyebrow' }, [kindLabel, it.zone, it.dayLabel].filter(Boolean).join(' · ')),
-    h('h2', { class: 'place-title' }, it.name),
+    h('h2', { class: 'place-title', id: 'place-title' }, it.name),
     it.jp ? h('p', { class: 'place-jp', lang: 'ja' }, it.jp) : null,
     h('div', { class: 'chips' }, halalChip(it.status), it.kind === 'eat' ? dietChip(it.for_b) : null),
     it.what || it.signature ? h('p', { class: 'body' }, it.what || it.signature) : null,
@@ -591,6 +605,7 @@ function viewDays(r) {
   return {
     title: d.date,
     large: false,
+    ownH1: true,
     back: ['days', 'Days'],
     list: grouped(t.days.map(dayRow), 'days-list'),
     listLabel: 'Days',
@@ -637,7 +652,7 @@ function dayDetail(d, i) {
     if (nd) { e.preventDefault(); lastFocus = 'day-head'; go(`days/${nd.iso}`); }
   }, 'data-key': 'day-head' },
   h('p', { class: 'eyebrow' }, `Day ${i + 1} of ${t.days.length}${d.wkd ? ' · Weekend' : ''}`),
-  h('h2', { class: 'day-title', 'aria-live': 'polite' }, d.title),
+  h('h1', { class: 'day-title', id: 'view-title', 'aria-live': 'polite' }, d.title),
   h('p', { class: 'day-place' }, `${d.date} · ${d.place}`),
   h('div', { class: 'chips' }, typeChip(d.type), chip(LOAD[d.load], 'plain'), d.walk ? chip(`Walking: ${d.walk}`, 'plain', 'figureWalk') : null));
   return h('div', { class: 'day-detail' },
@@ -712,9 +727,9 @@ function viewFood(r) {
         h('ul', { class: 'legend-list' }, HALAL_STATUS.map((s) => h('li', null, halalChip(s), h('span', null, HALAL_MEANING[s]))))),
       h('p', { class: 'caption' }, `Checked ${t.halal.as_of}. Hours and status can change, so confirm on arrival.`),
       places.length ? grouped(places.map((p) => placeRow(p, base))) : h('p', { class: 'empty' }, certOnly ? 'No certified places in this area. Turn off Certified only to see more.' : `No halal places listed for ${groupLabel}. Try another area or search Maps.`),
-      h('div', { class: 'go-row' },
+      h('div', { class: 'go-row wide' },
         ext(mapsUrl('halal restaurant'), [icon('search'), h('span', null, 'Halal near me')], { class: 'btn btn-gray', 'aria-label': 'Search Maps for halal restaurants near me' }),
-        ext(mapsUrl('prayer room'), [icon('moon'), h('span', null, 'Prayer room near me')], { class: 'btn btn-gray', 'aria-label': 'Search Maps for prayer rooms near me' })),
+        ext(mapsUrl('prayer room'), [icon('moon'), h('span', null, 'Prayer rooms near me')], { class: 'btn btn-gray', 'aria-label': 'Search Maps for prayer rooms near me' })),
       prayerSection,
       t.halal.dropped.length ? section('Closed or left out', h('details', { class: 'disclosure' }, h('summary', null, `${t.halal.dropped.length} places checked and left out`),
         h('ul', { class: 'grouped' }, t.halal.dropped.map((x) => h('li', { class: 'kv stack' }, h('span', { class: 'kv-label' }, x.name), h('span', { class: 'kv-value' }, x.reason)))))) : null,

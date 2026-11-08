@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Osaka Trip app icon source. Square artwork; iOS applies the mask. Keep the disc inside the 80% safe zone. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1E2A5A"/><stop offset="1" stop-color="#2F4B8F"/></linearGradient>
+    <radialGradient id="disc" cx="0.4" cy="0.35" r="0.75"><stop offset="0" stop-color="#FF7A5C"/><stop offset="1" stop-color="#E8553D"/></radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="640" cy="400" r="236" fill="url(#disc)"/>
+  <path d="M0 760 C 220 700, 380 820, 560 760 S 880 700, 1024 760 L 1024 1024 L 0 1024 Z" fill="#17214A" opacity="0.85"/>
+</svg>
