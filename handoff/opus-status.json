@@ -12,7 +12,7 @@
     "started": true,
     "designed": "design/ v1 (Fable) implemented; Fable full review and re-review ACCEPTED on c1389c8; remaining evidence is the owner device checklist (handbook/qa.md)",
     "built": true,
-    "tested": "unit 11/11; Playwright 133 passed, 5 skipped (offline Chromium-only); real-data smoke over live HTTPS: 35 views x 2 viewports, no errors, no overflow",
+    "tested": "unit 11/11; Playwright 145 passed, 5 skipped (offline Chromium-only), incl. synthetic Home Screen install tests (no start_url, link kept through unlock and Lock now, first standalone launch with separate storage asks password once, dropped link recovers by paste). LIVE 2026-11-09: 20/20 deployed files byte-identical to repo; live envelope decrypts in-process with the private key and equals private trip.json (11 days, 25 to-book items); real-data smoke over HTTPS 35 views x 2 viewports, no errors, no overflow. Proof limits: physical iPhone/iPad Safari, Home Screen and VoiceOver are owner-device checks (handbook/qa.md); the live password entry path was not exercised with the real password (it is not stored); the identical code path is tested with synthetic credentials.",
     "published": "LIVE at https://osaka.alibeydoun.info/ over HTTPS (certificate approved, expires 2027-02-07; Enforce HTTPS on; http 301 to https). One domain reset by Fable 2026-11-08 21:31 UTC; do not reset again."
   },
   "repo": "https://github.com/ali-beydoun/osaka-trip",
