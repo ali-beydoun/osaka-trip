@@ -2,11 +2,25 @@
   "role": "Opus - Osaka web app (delivery lead)",
   "live_handle": "Opus - Osaka web app [06c830]",
   "saved_session": "f7f1f5ff-2f5d-4294-b4ab-db8b57ff9091",
-  "peer": { "name": "Fable - Osaka Apple design", "live_handle": "Fable - Osaka Apple design [e2a77c]", "saved_session": "d6cb109e-5f20-49de-a152-75b5f2844d70" },
+  "peer": {
+    "name": "Fable - Osaka Apple design",
+    "live_handle": "Fable - Osaka Apple design [e2a77c]",
+    "saved_session": "d6cb109e-5f20-49de-a152-75b5f2844d70"
+  },
   "updated": "2026-11-08",
-  "state": { "started": true, "designed": "design/ v1 from Fable, implemented", "built": true, "tested": "unit 11/11; Playwright 109 passed, 5 skipped (offline is Chromium-only); real-data headless smoke 34 views x 2 viewports clean", "published": "pending first push and DNS record" },
+  "state": {
+    "started": true,
+    "designed": "design/ v1 (Fable) implemented; preliminary HIG findings fixed; full review in progress",
+    "built": true,
+    "tested": "unit 11/11; Playwright 121 passed, 5 skipped (offline Chromium-only); real-data headless smoke 34 views x 2 viewports clean",
+    "published": "GitHub Pages built from main:/docs (commit 39af348), verified at GitHub edge with custom host; live domain waits on DNS CNAME osaka -> ali-beydoun.github.io (owner action), then Enforce HTTPS"
+  },
   "repo": "https://github.com/ali-beydoun/osaka-trip",
   "live_url": "https://osaka.alibeydoun.info/ (needs DNS CNAME osaka -> ali-beydoun.github.io)",
   "private_folder": "~/dev/Personal/osaka-trip-private (data, keys, access link, audits; never commit)",
-  "open_items": ["Fable HIG review findings", "owner device checklist (handbook/qa.md)", "owner decisions on source conflicts and booking references"]
+  "open_items": [
+    "Fable HIG review findings",
+    "owner device checklist (handbook/qa.md)",
+    "owner decisions on source conflicts and booking references"
+  ]
 }
