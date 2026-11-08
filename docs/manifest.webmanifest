@@ -3,8 +3,8 @@
   "short_name": "Osaka",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#F2F2F7",
-  "theme_color": "#F2F2F7",
+  "background_color": "#F3F1EC",
+  "theme_color": "#F3F1EC",
   "icons": [
     {
       "src": "icons/icon-192.png",

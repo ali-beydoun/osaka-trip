@@ -528,7 +528,7 @@ function bookRow(it) {
   const d = dayOf(it.day);
   const id = `bk-${it.id}`;
   return h('li', { class: `book-row ${done ? 'is-done' : ''}` },
-    h('input', { type: 'checkbox', id, class: 'book-check', checked: done, 'data-key': id, onchange: (e) => { lastFocus = id; ctx.setPref(key, e.target.checked); draw(); } }),
+    h('span', { class: 'check' }, h('input', { type: 'checkbox', id, class: 'book-check', checked: done, 'data-key': id, onchange: (e) => { lastFocus = id; ctx.setPref(key, e.target.checked); draw(); } }), icon('check')),
     h('label', { for: id, class: 'row-text' },
       h('span', { class: 'row-title' }, it.title),
       h('span', { class: 'row-sub' }, [d ? d.date : it.day, it.deadline ? `book by ${it.deadline}` : ''].filter(Boolean).join(' \u00b7 ')),
@@ -869,7 +869,7 @@ function docSection(id, title) {
 function taskToggle(id, doneInSource, label) { // S2: ticks are stored on this device only
   const key = `task:${id}`;
   const done = ctx.prefs[key] ?? doneInSource;
-  return h('label', { class: 'task' }, h('input', { type: 'checkbox', checked: done, onchange: (e) => ctx.setPref(key, e.target.checked) }), h('span', null, label));
+  return h('label', { class: 'task' }, h('span', { class: 'check' }, h('input', { type: 'checkbox', checked: done, onchange: (e) => ctx.setPref(key, e.target.checked) }), icon('check')), h('span', null, label));
 }
 
 function guides() {
@@ -966,10 +966,13 @@ function appSettings() { // S13
       h('li', { class: 'kv' }, toggleRow('Keep unlocked on this device', p.remember !== false, async (on) => { await ctx.setRemember(on); draw(); })),
     ]), h('p', { class: 'caption' }, 'When on, this device opens the trip without the password. Lock now forgets it.'),
     grouped([h('li', { class: 'row' }, h('button', { class: 'row-link row-button', type: 'button', onclick: () => ctx.lockNow() }, icon('lock'), h('span', { class: 'row-text' }, h('span', { class: 'row-title tint' }, 'Lock now'))))])),
+    section('Appearance', segmented('Appearance', [['light', 'Light'], ['auto', 'Automatic'], ['dark', 'Dark']], p.appearance || window.osakaTheme.DEFAULT,
+      (v) => { ctx.setPref('appearance', window.osakaTheme.apply(v)); draw(); }),
+      h('p', { class: 'caption' }, 'Automatic follows the iPhone or iPad setting.')),
     section('Maps', grouped([h('li', { class: 'kv' }, h('label', { class: 'kv-label', for: 'maps' }, 'Open places in'),
       h('select', { id: 'maps', class: 'select', 'data-key': 'maps', onchange: (e) => { lastFocus = 'maps'; ctx.setPref('maps', e.target.value); draw(); } },
         h('option', { value: 'google', selected: p.maps !== 'apple' }, 'Google Maps'), h('option', { value: 'apple', selected: p.maps === 'apple' }, 'Apple Maps')))])),
-    section('Add to Home Screen', h('ol', { class: 'steps' }, h('li', null, 'In Safari, tap the Share button.'), h('li', null, 'Choose Add to Home Screen, then Add.'), h('li', null, 'Open it from the Home Screen. The first time, paste your private link and enter the password.'))),
+    section('Add to Home Screen', h('ol', { class: 'steps' }, h('li', null, 'In Safari, tap the Share button.'), h('li', null, 'Choose Add to Home Screen, then Add.'), h('li', null, 'Open it from the Home Screen and enter the password once.'))),
     section('Offline and data', grouped([kv('Status', ctx.online ? 'Online' : 'Offline, using the saved copy'), kv('Trip data version', ctx.env && ctx.env.rev),
       kv('Halal list checked', ctx.trip.halal.as_of), kv('Plan notes', ctx.trip.meta.notes)], 'kv-list')),
     section('Update trip link', h('form', { class: 'lock-form', onsubmit: async (e) => {
@@ -990,7 +993,7 @@ function maybeInstallHint() {
     h('div', { class: 'hint-icon', 'aria-hidden': 'true' }, icon('plusApp')),
     h('h2', { class: 'place-title' }, 'Keep the trip on your Home Screen'),
     h('ol', { class: 'steps' }, h('li', null, 'Tap Share in Safari.'), h('li', null, 'Choose Add to Home Screen.')),
-    h('p', { class: 'body' }, 'It opens full screen and works offline. The first launch asks for your private link and password once.'),
+    h('p', { class: 'body' }, 'It opens full screen and works offline. The first launch asks for the password once.'),
     h('button', { class: 'btn btn-filled', type: 'button', onclick: close }, 'Got It'));
   document.body.append(scrim, sheet);
   queueMicrotask(() => sheet.focus());

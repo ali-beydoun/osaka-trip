@@ -1,10 +1,16 @@
-/* Osaka Trip design tokens. Owner: Fable - Osaka Apple design. v1, 8 Nov 2026.
+/* Osaka Trip design tokens. Owner: Fable - Osaka Apple design.
+   v2, 9 Nov 2026: owner revision for a lighter, clearer presentation (see design/06-appearance-and-hierarchy.md).
    Import unchanged. App CSS references tokens only; no literal colours, sizes or durations elsewhere.
-   Values follow the iOS semantic colour system and type scale. Where a value is tuned for WCAG AA on the
-   grouped background it is noted. Reference sources: Apple HIG Color, Typography, Accessibility (June 2026). */
+
+   Appearance is chosen in the app, not by the device alone:
+     html[data-theme]      = the person's choice: light | auto | dark (stored in device prefs)
+     html[data-appearance] = the resolved appearance: light | dark (set by docs/js/theme.js before first paint;
+                             auto resolves through prefers-color-scheme and updates live)
+   This file reads ONLY data-appearance. No attribute means light, so light is the reliable default.
+   Reference sources: Apple HIG Color, Dark Mode, Typography, Accessibility (June 2026). */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   /* ---------- Type ---------- */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Helvetica Neue", "Hiragino Sans", "Noto Sans JP", Arial, sans-serif;
@@ -41,7 +47,7 @@
   --margin: 16px;              /* compact layout margin */
   --inset: 16px;               /* grouped list horizontal inset, compact */
   --cell-pad-x: 16px; --cell-pad-y: 11px;
-  --radius-sm: 8px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 20px; --radius-pill: 999px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --radius-xl: 22px; --radius-pill: 999px;
   --hit: 44px;                 /* minimum hit target, both axes */
   --hit-gap: 12px;             /* minimum gap between bezeled controls */
   --nav-h: 44px;               /* inline navigation bar content height */
@@ -54,6 +60,8 @@
   --sheet-detent-medium: 50dvh;
   --icon-inline: 17px; --icon-toolbar: 22px; --icon-tab: 24px; --icon-large: 28px;
   --icon-stroke: 1.75;
+  --check-size: 22px;          /* round check control (To book, Next up) */
+  --check-stroke: 1.5px;
 
   /* ---------- Motion ---------- */
   --dur-fast: 150ms; --dur-base: 250ms; --dur-slow: 350ms;
@@ -62,41 +70,48 @@
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
 
   /* ---------- Elevation ---------- */
-  --shadow-float: 0 8px 24px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08);
-  --shadow-sheet: 0 -8px 32px rgba(0,0,0,0.18);
+  --shadow-float: 0 8px 24px rgba(28,28,30,0.14), 0 1px 2px rgba(28,28,30,0.08);
+  --shadow-sheet: 0 -8px 32px rgba(28,28,30,0.18);
+  --shadow-card: 0 1px 2px rgba(28,28,30,0.04);
   --hairline: 0.5px;
 
-  /* ---------- Light appearance ---------- */
-  --bg-grouped: #F2F2F7;                 /* systemGroupedBackground */
+  /* ---------- Light appearance (default) ----------
+     Five layers, darkest to lightest: sidebar, page, bar material, surface (cards), elevated (sheets).
+     Warm neutrals instead of the cool system grey so white surfaces read as paper on a desk, not as a blank screen. */
+  --bg-grouped: #F3F1EC;                 /* page */
   --bg-grouped-secondary: #FFFFFF;       /* cards, grouped cells */
-  --bg-grouped-tertiary: #F2F2F7;        /* sub-grouping inside a card */
+  --bg-grouped-tertiary: #F4F2EE;        /* sub-grouping inside a card */
   --bg-elevated: #FFFFFF;                /* sheets, popovers, inspector */
-  --bg-bar: #F9F9F9;                     /* base for bar material */
-  --label: #000000;
-  --label-secondary: rgba(60,60,67,0.72);  /* iOS uses 0.60; 0.72 gives 4.75:1 on white and 4.5:1 on grouped */
-  --label-tertiary: rgba(60,60,67,0.42);   /* large text and glyphs only */
-  --label-quaternary: rgba(60,60,67,0.18); /* disabled and decorative */
-  --placeholder: rgba(60,60,67,0.40);
-  --separator: rgba(60,60,67,0.29);
-  --separator-opaque: #C6C6C8;
+  --bg-bar: #FFFFFF;                     /* base for bar material (navigation bar when scrolled, tab bar) */
+  --bg-sidebar: #E9E7E1;                 /* iPad sidebar and the iPad top tab bar strip */
+  --card-edge: rgba(60,60,67,0.12);      /* hairline around surfaces so they hold in daylight */
+  --label: #1C1C1E;
+  --label-secondary: rgba(60,60,67,0.76);  /* 5.2:1 on white, 4.8:1 on page, 4.6:1 on sidebar */
+  --label-tertiary: rgba(60,60,67,0.46);   /* large text and glyphs only */
+  --label-quaternary: rgba(60,60,67,0.20); /* disabled and decorative */
+  --placeholder: rgba(60,60,67,0.42);
+  --separator: rgba(60,60,67,0.24);
+  --separator-opaque: #D8D6D0;
   --fill: rgba(120,120,128,0.20);
   --fill-secondary: rgba(120,120,128,0.16);
   --fill-tertiary: rgba(118,118,128,0.12);
   --fill-quaternary: rgba(116,116,128,0.08);
-  --tint: #006AD6;                       /* 5.2:1 on white, 4.65:1 on grouped; reads as system blue */
+  --tint: #1F4FC7;                       /* cobalt: 7.0:1 on white, 6.1:1 on page; text, glyphs, links */
+  --tint-fill: #1F4FC7;                  /* filled controls; white on it 7.0:1 */
   --on-tint: #FFFFFF;
-  --tint-soft: rgba(0,106,214,0.10);
-  --tint-pressed: #005AB8;
-  --focus-ring: #006AD6;
+  --tint-soft: rgba(31,79,199,0.12);     /* selected tab pill, selected sidebar row, soft highlights */
+  --tint-pressed: #173FA8;
+  --focus-ring: #1F4FC7;
+  --check-ring: rgba(60,60,67,0.34);     /* unchecked round control outline */
 
-  /* Status and category hues: fills are iOS system colours; text variants pass 4.5:1 on white and grouped. */
+  /* Status and category hues: fills are iOS system colours; text variants pass 4.5:1 on white and page. */
   --green: #34C759;   --green-text: #1B7F3B;   --green-soft: rgba(52,199,89,0.16);
   --orange: #FF9500;  --orange-text: #9A5B00;  --orange-soft: rgba(255,149,0,0.16);
   --teal: #30B0C7;    --teal-text: #0B6E7F;    --teal-soft: rgba(48,176,199,0.16);
   --indigo: #5856D6;  --indigo-text: #4341B5;  --indigo-soft: rgba(88,86,214,0.14);
   --red: #FF3B30;     --red-text: #B3261E;     --red-soft: rgba(255,59,48,0.12);
   --yellow: #FFCC00;  --yellow-text: #7A5A00;  --yellow-soft: rgba(255,204,0,0.18);
-  --gray: #8E8E93;    --gray-text: rgba(60,60,67,0.72); --gray-soft: rgba(142,142,147,0.16);
+  --gray: #8E8E93;    --gray-text: rgba(60,60,67,0.76); --gray-soft: rgba(142,142,147,0.16);
 
   /* Day type colours (fill + label text always paired) */
   --type-shop: var(--orange);   --type-shop-text: var(--orange-text);
@@ -114,78 +129,73 @@
 
   --weekend-wash: rgba(60,60,67,0.06);
   --today-ring: var(--tint);
-  --material-alpha: 0.72;
+  --scrim: rgba(28,28,30,0.32);
+  --material-alpha: 0.84;                /* bars are mostly opaque so they separate from content */
+  --theme-color: #F3F1EC;                /* mirrored into <meta name="theme-color"> by theme.js */
 }
 
-/* ---------- Dark appearance ---------- */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg-grouped: #000000;
-    --bg-grouped-secondary: #1C1C1E;
-    --bg-grouped-tertiary: #2C2C2E;
-    --bg-elevated: #1C1C1E;
-    --bg-bar: #1C1C1E;
-    --label: #FFFFFF;
-    --label-secondary: rgba(235,235,245,0.60);
-    --label-tertiary: rgba(235,235,245,0.38);
-    --label-quaternary: rgba(235,235,245,0.16);
-    --placeholder: rgba(235,235,245,0.30);
-    --separator: rgba(84,84,88,0.60);
-    --separator-opaque: #38383A;
-    --fill: rgba(120,120,128,0.36);
-    --fill-secondary: rgba(120,120,128,0.32);
-    --fill-tertiary: rgba(118,118,128,0.24);
-    --fill-quaternary: rgba(116,116,128,0.18);
-    --tint: #0A84FF;                     /* 5.8:1 on black, 4.7:1 on #1C1C1E */
-    --on-tint: #FFFFFF;
-    --tint-soft: rgba(10,132,255,0.18);
-    --tint-pressed: #409CFF;
-    --focus-ring: #0A84FF;
-    --green: #30D158;  --green-text: #30D158;  --green-soft: rgba(48,209,88,0.18);
-    --orange: #FF9F0A; --orange-text: #FFB340; --orange-soft: rgba(255,159,10,0.18);
-    --teal: #40C8E0;   --teal-text: #5AD2E8;   --teal-soft: rgba(64,200,224,0.18);
-    --indigo: #5E5CE6; --indigo-text: #9C9BFF; --indigo-soft: rgba(94,92,230,0.22);
-    --red: #FF453A;    --red-text: #FF6961;    --red-soft: rgba(255,69,58,0.18);
-    --yellow: #FFD60A; --yellow-text: #FFD60A; --yellow-soft: rgba(255,214,10,0.16);
-    --gray: #8E8E93;   --gray-text: rgba(235,235,245,0.60); --gray-soft: rgba(142,142,147,0.22);
-    --weekend-wash: rgba(255,255,255,0.06);
-    --shadow-float: 0 8px 24px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
-    --shadow-sheet: 0 -8px 32px rgba(0,0,0,0.6);
-    --material-alpha: 0.78;
-  }
-}
-:root[data-theme="dark"] {
-  --bg-grouped: #000000; --bg-grouped-secondary: #1C1C1E; --bg-grouped-tertiary: #2C2C2E; --bg-elevated: #1C1C1E; --bg-bar: #1C1C1E;
-  --label: #FFFFFF; --label-secondary: rgba(235,235,245,0.60); --label-tertiary: rgba(235,235,245,0.38); --label-quaternary: rgba(235,235,245,0.16);
-  --placeholder: rgba(235,235,245,0.30); --separator: rgba(84,84,88,0.60); --separator-opaque: #38383A;
-  --fill: rgba(120,120,128,0.36); --fill-secondary: rgba(120,120,128,0.32); --fill-tertiary: rgba(118,118,128,0.24); --fill-quaternary: rgba(116,116,128,0.18);
-  --tint: #0A84FF; --on-tint: #FFFFFF; --tint-soft: rgba(10,132,255,0.18); --tint-pressed: #409CFF; --focus-ring: #0A84FF;
-  --green: #30D158; --green-text: #30D158; --green-soft: rgba(48,209,88,0.18);
+/* ---------- Dark appearance (chosen, or Automatic on a dark device) ----------
+   Elevated dark set, not pure black: the page is a deep graphite, surfaces lift one step, and every surface keeps a
+   faint edge so cards, bars and page stay distinct. */
+:root[data-appearance="dark"] {
+  color-scheme: dark;
+  --bg-grouped: #111113;
+  --bg-grouped-secondary: #1F1F23;
+  --bg-grouped-tertiary: #2A2A2F;
+  --bg-elevated: #232328;
+  --bg-bar: #1B1B1F;
+  --bg-sidebar: #161619;
+  --card-edge: rgba(255,255,255,0.07);
+  --label: #F5F5F7;
+  --label-secondary: rgba(235,235,245,0.64);  /* 6.4:1 on cards */
+  --label-tertiary: rgba(235,235,245,0.40);
+  --label-quaternary: rgba(235,235,245,0.18);
+  --placeholder: rgba(235,235,245,0.32);
+  --separator: rgba(255,255,255,0.10);
+  --separator-opaque: #3A3A3F;
+  --fill: rgba(120,120,128,0.36);
+  --fill-secondary: rgba(120,120,128,0.32);
+  --fill-tertiary: rgba(118,118,128,0.24);
+  --fill-quaternary: rgba(116,116,128,0.18);
+  --tint: #6FA3FF;                       /* 6.5:1 on cards, 7.5:1 on page */
+  --tint-fill: #2F6FE0;                  /* filled controls; white on it 4.6:1 */
+  --on-tint: #FFFFFF;
+  --tint-soft: rgba(111,163,255,0.20);
+  --tint-pressed: #8DB6FF;
+  --focus-ring: #6FA3FF;
+  --check-ring: rgba(235,235,245,0.36);
+  --green: #30D158;  --green-text: #30D158;  --green-soft: rgba(48,209,88,0.18);
   --orange: #FF9F0A; --orange-text: #FFB340; --orange-soft: rgba(255,159,10,0.18);
-  --teal: #40C8E0; --teal-text: #5AD2E8; --teal-soft: rgba(64,200,224,0.18);
+  --teal: #40C8E0;   --teal-text: #5AD2E8;   --teal-soft: rgba(64,200,224,0.18);
   --indigo: #5E5CE6; --indigo-text: #9C9BFF; --indigo-soft: rgba(94,92,230,0.22);
-  --red: #FF453A; --red-text: #FF6961; --red-soft: rgba(255,69,58,0.18);
+  --red: #FF453A;    --red-text: #FF6961;    --red-soft: rgba(255,69,58,0.18);
   --yellow: #FFD60A; --yellow-text: #FFD60A; --yellow-soft: rgba(255,214,10,0.16);
-  --gray: #8E8E93; --gray-text: rgba(235,235,245,0.60); --gray-soft: rgba(142,142,147,0.22);
+  --gray: #8E8E93;   --gray-text: rgba(235,235,245,0.64); --gray-soft: rgba(142,142,147,0.22);
   --weekend-wash: rgba(255,255,255,0.06);
-  --shadow-float: 0 8px 24px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4); --shadow-sheet: 0 -8px 32px rgba(0,0,0,0.6);
-  --material-alpha: 0.78;
+  --scrim: rgba(0,0,0,0.5);
+  --shadow-float: 0 8px 24px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-sheet: 0 -8px 32px rgba(0,0,0,0.6);
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.3);
+  --material-alpha: 0.88;
+  --theme-color: #111113;
 }
 
 /* ---------- Increase Contrast ---------- */
 @media (prefers-contrast: more) {
   :root {
-    --tint: #0040DD; --tint-pressed: #0030B0; --focus-ring: #0040DD;
+    --tint: #163C9C; --tint-fill: #163C9C; --tint-pressed: #0F2D78; --focus-ring: #163C9C;
     --label-secondary: rgba(60,60,67,0.86);
     --separator: rgba(60,60,67,0.5);
+    --card-edge: rgba(60,60,67,0.3);
+    --check-ring: rgba(60,60,67,0.6);
     --green-text: #0F5F2A; --orange-text: #7A4700; --teal-text: #075765; --indigo-text: #33318F; --red-text: #8E1A12;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --tint: #409CFF; --tint-pressed: #70B8FF; --focus-ring: #409CFF;
-      --label-secondary: rgba(235,235,245,0.82);
-      --separator: rgba(84,84,88,0.9);
-    }
+  :root[data-appearance="dark"] {
+    --tint: #8DB6FF; --tint-fill: #2A62CC; --tint-pressed: #B0CCFF; --focus-ring: #8DB6FF;
+    --label-secondary: rgba(235,235,245,0.82);
+    --separator: rgba(255,255,255,0.22);
+    --card-edge: rgba(255,255,255,0.18);
+    --check-ring: rgba(235,235,245,0.6);
   }
 }
 

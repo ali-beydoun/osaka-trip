@@ -255,6 +255,48 @@ test.describe('Home Screen install (emulated; real iOS stays on the owner checkl
   });
 });
 
+test.describe('appearance', () => {
+  test('light by default even when the system is dark; Automatic follows the system; Dark persists', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await unlock(page);
+    const attrs = () => page.evaluate(() => [document.documentElement.dataset.theme, document.documentElement.dataset.appearance, document.querySelector('meta[name="theme-color"]').content]);
+    const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    expect(await attrs()).toEqual(['light', 'light', '#F3F1EC']);
+    const lightBg = await bg();
+    await page.goto(url('info/app'));
+    const seg = page.getByRole('radiogroup', { name: 'Appearance' });
+    await seg.getByRole('radio', { name: 'Automatic' }).click();
+    expect(await attrs()).toEqual(['auto', 'dark', '#111113']);
+    expect(await bg()).not.toBe(lightBg);
+    await page.emulateMedia({ colorScheme: 'light' });
+    await expect.poll(attrs).toEqual(['auto', 'light', '#F3F1EC']);
+    await seg.getByRole('radio', { name: 'Dark' }).click();
+    await page.reload();
+    await expect(page.locator('#view-title')).toBeAttached();
+    expect(await attrs()).toEqual(['dark', 'dark', '#111113']);
+    await expect(page.getByRole('radiogroup', { name: 'Appearance' }).getByRole('radio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'true');
+    await page.getByRole('radiogroup', { name: 'Appearance' }).getByRole('radio', { name: 'Light' }).click();
+    expect(await bg()).toBe(lightBg);
+  });
+
+  test('the locked screen is light by default on a dark system', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(url());
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.dataset.appearance)).toBe('light');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('light');
+  });
+
+  test('round check controls keep checkbox semantics', async ({ page }) => {
+    await unlock(page);
+    await page.goto(url('info/to-book'));
+    const box = page.getByRole('checkbox').first();
+    await expect(box).not.toBeChecked();
+    await box.click();
+    await expect(page.getByRole('checkbox').first()).toBeChecked();
+  });
+});
+
 test.describe('privacy and indexing', () => {
   test('noindex on index and 404; robots.txt allows crawling; no plaintext in the data file', async ({ page, request }) => {
     await page.goto('/');
