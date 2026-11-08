@@ -21,7 +21,7 @@ const days = ['2030-05-07', '2030-05-08', '2030-05-09'].map((iso, i) => ({
 export const fixture = {
   meta: { title: 'Osaka Trip', tz: 'Asia/Tokyo', start: days[0].iso, end: days[2].iso, halal_as_of: '1 May 2030', migrated_from: 'fixture' },
   travellers: [{ id: 'b', role: 'B', name: 'Traveller B', dietary: 'Sample dietary note.' }, { id: 'a', role: 'A', name: 'Traveller A', dietary: '' }],
-  hotel: { name: 'Sample Hotel', address: '1-1 Sample, Kita-ku, Osaka', maps_query: 'Sample Hotel Osaka', checkin: '15:00', checkout: '11:00', stations: 'Sample Station 5 min' },
+  hotel: { name: 'Sample Hotel', address: '1-1 Sample, Kita-ku, Osaka', name_jp: 'サンプルホテル', address_jp: '大阪市北区サンプル1-1', phone: '+81 6-0000-0000', maps_query: 'Sample Hotel Osaka', checkin: '15:00', checkout: '11:00', stations: 'Sample Station 5 min' },
   days,
   bakeries: [item('Sample Bakery', { jp: 'サンプル', area: 'Umeda', why: 'Sample reason', signature: 'Croissant', for_b: 'Sample note', opens: '8:00', closed: 'Mondays', walk_min: 5, tags: ['coffee'] })],
   halal: {

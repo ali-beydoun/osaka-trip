@@ -297,6 +297,15 @@ test.describe('appearance', () => {
   });
 });
 
+test('list column never scrolls sideways (chip row stays inside it)', async ({ page }, testInfo) => {
+  await unlock(page);
+  for (const v of ['food', 'food/halal', 'places']) {
+    await page.goto(url(v));
+    const over = await page.evaluate(() => { const c = document.querySelector('.list-col'); return c && getComputedStyle(c).display !== 'none' ? c.scrollWidth - c.clientWidth : 0; });
+    expect(over, `${testInfo.project.name} ${v}`).toBeLessThanOrEqual(1);
+  }
+});
+
 test.describe('privacy and indexing', () => {
   test('noindex on index and 404; robots.txt allows crawling; no plaintext in the data file', async ({ page, request }) => {
     await page.goto('/');

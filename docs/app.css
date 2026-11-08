@@ -382,6 +382,7 @@ html[data-short] .quick-btn { flex-direction: row; min-height: var(--hit); }
   .main-col { width: 100%; max-width: var(--measure-wide); justify-self: center; }
   .list-col { display: block; position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--nav-h) + var(--space-3)); max-height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--nav-h) - var(--space-5)); overflow: auto; overscroll-behavior: contain; padding: var(--space-2) var(--space-1) var(--space-6); }
   .columns:has(.list-col) { grid-template-columns: var(--list-col-w) minmax(0, 1fr); }
+  .list-col .chip-scroll { margin-left: 0; margin-right: 0; padding: 0 var(--space-1); }  /* the chip scroller bleeds to the screen edge only on compact */
   .tab-food .main-col, .tab-places .main-col { display: none; }
   .inspector { display: block; position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--nav-h) + var(--space-3)); max-height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--nav-h) - var(--space-5)); overflow: auto; padding: var(--space-5); border-radius: var(--radius-xl); background: var(--bg-elevated); box-shadow: 0 0 0 var(--hairline) var(--card-edge), var(--shadow-card); }
   .inspector-empty { display: grid; place-items: center; align-content: center; gap: var(--space-3); min-height: 280px; color: var(--label-secondary); font-size: var(--fs-subheadline); text-align: center; }
