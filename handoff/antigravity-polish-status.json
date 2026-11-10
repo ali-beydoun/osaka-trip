@@ -1,6 +1,6 @@
 {
   "status": "complete",
-  "completedAt": "2026-11-10T04:32:00Z",
+  "completedAt": "2026-11-10T04:36:45Z",
   "branch": "codex/antigravity-osaka-polish-20261110",
   "baseCommit": "9f2929de7ebd3c344f94c63b5e94d7da50e9d4f5",
   "worktree": "/Users/alibeydoun/Documents/Codex/2026-11-08/can-you-check-if-claude-on/antigravity-worktree",
@@ -10,7 +10,7 @@
   "uiChanges": [
     "Added compact horizontal day-jump pill strip (.day-strip) on Day Detail for 1-tap switching across all days on iPhone viewports.",
     "Added multi-area halal and prayer quick-jump bar (.day-area-bar) on Day Detail and multi-area Food views, with per-area prayer links and counts matching their exact destination.",
-    "Added progressive disclosure on Day Detail for route strategy, practical logistics, rain/low-energy alternatives, optional massage/facial/spa choices (with spa_intro, structured Menu/Hours/Rooms/Booking/Notes lines, neutral plain chips, freshness dates, and direct official/booking links), and excess watch-outs beyond 4.",
+    "Added progressive disclosure on Day Detail for route strategy, practical logistics, rain/low-energy alternatives, optional massage/facial/spa choices (with spa_intro, structured Menu/Hours/Rooms/Booking/Notes lines, neutral plain chips, freshness dates, and deduplicated Source & booking links), and excess watch-outs beyond 4.",
     "Enhanced Zone cards with optional option/priority badges, highlight callouts, collapsible zone tips, item-name summary previews, and auto-opening the primary category when a zone has zero sight stops.",
     "Enhanced Place rows and Place Detail sheet/inspector with structured field notes, prayer room access badges, last-entry/tax-free metadata, and primary-source check dates strictly limited to directly read official pages."
   ],
@@ -31,14 +31,14 @@
     "e2eTests": "170 passed, 10 skipped, 0 failed",
     "smokeRealCompact393x852": {
       "views": 35,
-      "rowsRendered": 949,
+      "rowsRendered": 896,
       "viewsWithNoRows": 0,
       "viewsWithHorizontalOverflow": 0,
       "errors": "none"
     },
     "smokeRealRegular1366x1024": {
       "views": 35,
-      "rowsRendered": 954,
+      "rowsRendered": 971,
       "viewsWithNoRows": 0,
       "viewsWithHorizontalOverflow": 0,
       "errors": "none"

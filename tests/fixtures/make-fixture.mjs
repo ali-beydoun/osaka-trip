@@ -33,7 +33,7 @@ const days = ['2030-05-07', '2030-05-08', '2030-05-09'].map((iso, i) => ({
       why: 'Sample confirmed spa feature.',
       caveat: 'Sample unknown to confirm in writing.',
       source: 'https://example.com/spa',
-      booking_url: 'https://example.com/spa-book',
+      booking_url: 'https://example.com/spa',
       maps_query: 'Sample Day Spa Osaka',
     }],
   } : {}),

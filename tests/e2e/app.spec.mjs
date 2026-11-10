@@ -113,6 +113,7 @@ test.describe('unlocked app', () => {
     await expect(page.getByText('Sample spa intro for day 2.')).toBeVisible();
     await expect(page.getByText('Sample Day Spa')).toBeVisible();
     await expect(page.getByText('Both can attend in private rooms.')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Source & booking (example.com)' })).toHaveCount(1);
     await expect(page.locator('.spa-item .chip.ev-certified')).toHaveCount(0);
     await expect(page.locator('.zone-highlight').first()).toContainText('Sample zone highlight ba.');
     for (const t of ['The day', 'Zones', 'End of the day', 'Good to know', 'Questions to settle', 'Sources']) await expect(page.getByRole('heading', { name: t, exact: true })).toBeVisible();
