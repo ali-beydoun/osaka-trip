@@ -786,13 +786,12 @@ function spaRow(s) {
         line('Rooms', s.attendance),
         line('Booking', s.booking),
         line('Notes', s.caveat, 'row-meta'),
-        (s.source || s.booking_url) ? h('span', { class: 'row-facts' },
+        (s.source || s.booking_url) ? h('span', { class: 'spa-actions' },
           s.source && s.booking_url && s.source === s.booking_url
-            ? ext(s.booking_url, [icon('link'), h('span', null, `Source & booking (${sourceLabel(s.booking_url)})`)], { class: 'text-btn inline' })
+            ? ext(s.booking_url, [icon('link'), h('span', null, `Source & booking (${sourceLabel(s.booking_url)})`)], { class: 'text-btn small' })
             : [
-                s.source ? ext(s.source, [icon('link'), h('span', null, `Source (${sourceLabel(s.source)})`)], { class: 'text-btn inline' }) : null,
-                s.source && s.booking_url ? ' \u00b7 ' : null,
-                s.booking_url ? ext(s.booking_url, [icon('link'), h('span', null, `Book (${sourceLabel(s.booking_url)})`)], { class: 'text-btn inline' }) : null,
+                s.source ? ext(s.source, [icon('link'), h('span', null, `Source (${sourceLabel(s.source)})`)], { class: 'text-btn small' }) : null,
+                s.booking_url ? ext(s.booking_url, [icon('link'), h('span', null, `Book (${sourceLabel(s.booking_url)})`)], { class: 'text-btn small' }) : null,
               ]) : null)),
     q ? ext(mapsUrl(q), icon('arrowOut'), { class: 'row-go', 'aria-label': `${s.name} in Maps` }) : null);
 }

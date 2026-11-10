@@ -153,6 +153,8 @@ body.just-unlocked .shell { animation: fade-in var(--dur-base) var(--ease-decele
 .row-facts { color: var(--label-secondary); font-size: var(--fs-footnote); line-height: var(--lh-footnote); }
 .row-meta { color: var(--label-secondary); font-size: var(--fs-footnote); line-height: var(--lh-footnote); }
 .row-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.spa-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-4); margin-top: var(--space-1); }
+.spa-actions .text-btn { min-width: var(--hit); }
 .row-time { flex: none; width: 4.6em; color: var(--label-secondary); font-size: var(--fs-footnote); }
 .is-now .row-link { background: var(--tint-soft); }
 .kv { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); min-height: var(--hit); padding: var(--cell-pad-y) var(--cell-pad-x); }

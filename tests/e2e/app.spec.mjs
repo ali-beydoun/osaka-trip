@@ -232,7 +232,9 @@ test.describe('unlocked app', () => {
   test('every interactive target is at least 44px (sampled)', async ({ page }) => {
     for (const v of ['today', 'days/2030-05-08', 'food/halal', 'places']) {
       await page.goto(url(v));
-      const small = await page.evaluate(() => [...document.querySelectorAll('.tab, .top-tab, .icon-btn, .btn, .row-link, .filter-chip, .segmented button, .quick-btn, .rhythm-day a, .day-pill, .area-link, .disclosure > summary')]
+      const spaDisclosure = page.locator('summary', { hasText: 'Optional massage, facial & spa' });
+      if (await spaDisclosure.count()) await spaDisclosure.click();
+      const small = await page.evaluate(() => [...document.querySelectorAll('.tab, .top-tab, .icon-btn, .btn, .row-link, .filter-chip, .segmented button, .quick-btn, .rhythm-day a, .day-pill, .area-link, .disclosure > summary, .spa-item .text-btn')]
         .filter((el) => el.offsetParent !== null)
         .map((el) => { const r = el.getBoundingClientRect(); return { c: el.className, w: Math.round(r.width), h: Math.round(r.height) }; })
         .filter((r) => r.w < 44 || r.h < 44)
