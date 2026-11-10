@@ -17,10 +17,11 @@
   "counts": {
     "daysEnriched": 11,
     "zonesEnriched": 26,
-    "dayItemsEnriched": 204,
-    "halalPlacesPatched": 73,
+    "dayItemsPatched": 51,
+    "dayItemsDirectSourceVerified": 9,
+    "halalPlacesPatched": 4,
     "prayerRoomsPatched": 23,
-    "privateStringsVerified": 3125
+    "privateStringsVerified": 2848
   },
   "checks": {
     "prepareData": "passed",
