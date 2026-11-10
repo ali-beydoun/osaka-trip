@@ -21,7 +21,7 @@
     "dayItemsDirectSourceVerified": 9,
     "halalPlacesPatched": 4,
     "prayerRoomsPatched": 23,
-    "privateStringsVerified": 2848
+    "privateStringsVerified": 2855
   },
   "checks": {
     "prepareData": "passed",

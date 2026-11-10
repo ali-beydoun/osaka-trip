@@ -94,18 +94,21 @@ for (const f of updates.replace_exact_fields || []) {
 // Structured day and directory enrichments (day-enrichments.local.json), applied after owner updates.
 if (fs.existsSync(path.join(PRIVATE_DIR, 'day-enrichments.local.json'))) {
   const enrich = JSON.parse(read('day-enrichments.local.json'));
+  const norm = (s) => String(s || '').trim().toLowerCase().replace(/[\u2018\u2019]/g, "'");
   if (enrich.halal) {
     if (enrich.halal.dayGroups) trip.halal.dayGroups = enrich.halal.dayGroups;
     if (enrich.halal.places_patch) {
-      for (const p of trip.halal.places) {
-        const patch = enrich.halal.places_patch[p.name];
-        if (patch) Object.assign(p, patch);
+      for (const [key, patch] of Object.entries(enrich.halal.places_patch)) {
+        const matches = trip.halal.places.filter((p) => norm(p.name) === norm(key));
+        if (matches.length !== 1) throw new Error(`Halal place patch "${key}" expected 1 exact match, found ${matches.length}.`);
+        Object.assign(matches[0], patch);
       }
     }
     if (enrich.halal.prayer_patch) {
-      for (const pr of trip.halal.prayer) {
-        const patch = enrich.halal.prayer_patch[pr.name];
-        if (patch) Object.assign(pr, patch);
+      for (const [key, patch] of Object.entries(enrich.halal.prayer_patch)) {
+        const matches = trip.halal.prayer.filter((pr) => norm(pr.name) === norm(key));
+        if (matches.length !== 1) throw new Error(`Prayer patch "${key}" expected 1 exact match, found ${matches.length}.`);
+        Object.assign(matches[0], patch);
       }
     }
   }
@@ -125,8 +128,9 @@ if (fs.existsSync(path.join(PRIVATE_DIR, 'day-enrichments.local.json'))) {
       }
       if (de.watch_outs_replace) {
         for (const { match, text } of de.watch_outs_replace) {
-          const idx = d.watch_outs.findIndex((w) => w.includes(match));
-          if (idx >= 0) d.watch_outs[idx] = text;
+          const hits = d.watch_outs.map((w, idx) => (w.includes(match) ? idx : -1)).filter((idx) => idx >= 0);
+          if (hits.length !== 1) throw new Error(`Watch-out replace "${match}" on ${iso} expected 1 match, found ${hits.length}.`);
+          d.watch_outs[hits[0]] = text;
         }
       }
       if (de.watch_outs_prepend) d.watch_outs = [...de.watch_outs_prepend, ...d.watch_outs];
@@ -143,13 +147,14 @@ if (fs.existsSync(path.join(PRIVATE_DIR, 'day-enrichments.local.json'))) {
           }
           if (ze.getting_there_patch) Object.assign(z.getting_there, ze.getting_there_patch);
           if (ze.items_patch) {
-            const norm = (s) => String(s || '').toLowerCase().replace(/[\u2018\u2019]/g, "'");
-            for (const kind of ['stops', 'eat', 'sweet', 'shop']) {
-              for (const it of z[kind] || []) {
-                const nIt = norm(it.name);
-                const ip = ze.items_patch[it.name] || Object.entries(ze.items_patch).find(([key]) => nIt.includes(norm(key)) || norm(key).includes(nIt))?.[1];
-                if (ip) Object.assign(it, ip);
+            const allItems = ['stops', 'eat', 'sweet', 'shop'].flatMap((kind) => z[kind] || []);
+            for (const [key, ip] of Object.entries(ze.items_patch)) {
+              const nKey = norm(key);
+              const matches = allItems.filter((it) => norm(it.name) === nKey);
+              if (matches.length !== 1) {
+                throw new Error(`Item patch "${key}" on ${iso} zone ${zi} expected 1 exact match, found ${matches.length}.`);
               }
+              Object.assign(matches[0], ip);
             }
           }
           for (const kind of ['stops', 'eat', 'sweet', 'shop']) {

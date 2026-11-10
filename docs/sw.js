@@ -1,6 +1,6 @@
 // Offline support. Caches only the public app shell and the ENCRYPTED trip file.
 // Decrypted trip data is never written to any cache or storage by this worker.
-const REV = '20261110T034712Z';
+const REV = '20261110T035257Z';
 const CACHE = `osaka-${REV}`;
 const SHELL = [
   './',
