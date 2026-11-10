@@ -1,6 +1,6 @@
 {
   "status": "complete",
-  "completedAt": "2026-11-10T03:28:30Z",
+  "completedAt": "2026-11-10T04:15:30Z",
   "branch": "codex/antigravity-osaka-polish-20261110",
   "baseCommit": "9f2929de7ebd3c344f94c63b5e94d7da50e9d4f5",
   "worktree": "/Users/alibeydoun/Documents/Codex/2026-11-08/can-you-check-if-claude-on/antigravity-worktree",
@@ -17,11 +17,11 @@
   "counts": {
     "daysEnriched": 11,
     "zonesEnriched": 26,
-    "dayItemsPatched": 51,
-    "dayItemsDirectSourceVerified": 9,
+    "dayItemsPatched": 53,
+    "dayItemsDirectSourceVerified": 13,
     "halalPlacesPatched": 4,
     "prayerRoomsPatched": 23,
-    "privateStringsVerified": 2855
+    "privateStringsVerified": 2871
   },
   "checks": {
     "prepareData": "passed",
@@ -30,14 +30,14 @@
     "e2eTests": "170 passed, 10 skipped, 0 failed",
     "smokeRealCompact393x852": {
       "views": 35,
-      "rowsRendered": 1005,
+      "rowsRendered": 878,
       "viewsWithNoRows": 0,
       "viewsWithHorizontalOverflow": 0,
       "errors": "none"
     },
     "smokeRealRegular1366x1024": {
       "views": 35,
-      "rowsRendered": 1008,
+      "rowsRendered": 923,
       "viewsWithNoRows": 0,
       "viewsWithHorizontalOverflow": 0,
       "errors": "none"
