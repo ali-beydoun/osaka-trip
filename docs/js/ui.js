@@ -3,7 +3,7 @@
 import { h, ext, icon, markdown } from './dom.js';
 import {
   DAY_TYPE, LOAD, MODE, FLOW_LEVEL, KINDS, HALAL_STATUS, HALAL_KEY, dietKey, walkCaption, resolveNow, tripPhase,
-  nowNext, allPlaces, foodCategories, halalPlaces, prayerRooms, defaultHalalGroup, fill, searchPlaces, parseHM,
+  nowNext, allPlaces, foodCategories, halalPlaces, prayerRooms, defaultHalalGroup, dayHalalGroups, fill, searchPlaces, parseHM,
 } from './model.js';
 
 const TABS = [
@@ -426,15 +426,22 @@ function metaLine(parts) {
 // Place rows present a sheet or fill the inspector, so they show no chevron (C3).
 function placeRow(it, v) {
   const badge = it.status ? halalChip(it.status) : it.kind === 'eat' && it.for_b ? dietChip(it.for_b) : null;
+  const accessBadge = it.kind === 'prayer' && it.access ? chip(it.access, /patron/i.test(it.access) ? 'ev ev-claim' : 'plain') : null;
+  const notesBadge = (it.look_for || it.entry_tip) && ['stops', 'eat', 'sweet', 'shop'].includes(it.kind) ? chip('Field tips', 'plain') : null;
+  const chips = [badge, accessBadge, notesBadge].filter(Boolean);
   const selected = route().params.get('p') === it.id;
   const sub = it.kind === 'prayer' ? [it.area, it.where] : it.kind === 'halal' ? [it.area, it.cuisine] : [];
+  const facts = ['stops', 'eat', 'sweet', 'shop'].includes(it.kind)
+    ? [it.hours, it.cost || it.price, it.closed ? `Closed ${it.closed}` : ''].filter(Boolean).join(' \u00b7 ')
+    : it.kind === 'prayer' && it.hours ? it.hours : '';
   return h('li', { class: 'row' },
     link(withParam(v, 'p', it.id), { class: 'row-link', 'aria-current': selected ? 'true' : null, 'data-key': `row-${it.id}` },
       h('span', { class: 'row-text' },
         h('span', { class: 'row-title' }, it.name, it.jp ? h('span', { class: 'row-jp', lang: 'ja' }, ` ${it.jp}`) : null),
-        sub.filter(Boolean).length ? h('span', { class: 'row-sub' }, sub.filter(Boolean).join(' · ')) : null,
+        sub.filter(Boolean).length ? h('span', { class: 'row-sub' }, sub.filter(Boolean).join(' \u00b7 ')) : null,
         it.what || it.signature ? h('span', { class: 'row-sub clamp' }, it.what || it.signature) : null,
-        badge ? h('span', { class: 'row-chips' }, badge) : null,
+        facts ? h('span', { class: 'row-facts' }, facts) : null,
+        chips.length ? h('span', { class: 'row-chips' }, ...chips) : null,
         walkCaption(it) ? h('span', { class: 'row-meta' }, walkCaption(it)) : it.opens ? h('span', { class: 'row-meta' }, `Opens ${it.opens}`) : null)),
     ext(dirUrl(it.maps_query || it.name, it.mode || (walkCaption(it) ? 'walking' : 'transit')), icon('arrowOut'), { class: 'row-go', 'aria-label': `Directions to ${it.name}` }));
 }
@@ -452,25 +459,34 @@ function findPlace(id) {
     || cache.prayer.find((p) => p.id === id) || null;
 }
 
-function placeDetail(it) { // S7: the row expanded, nothing new
+function placeDetail(it) { // S7: the row expanded, with deeper practical field notes
   const t = ctx.trip;
   const q = it.maps_query || it.name;
   const kindLabel = { stops: 'See', shop: 'Shop', sweet: 'Something sweet', eat: 'Eat', bakery: 'Bakery', halal: 'Halal food', prayer: 'Prayer room' }[it.kind];
+  const fieldNotes = grouped([
+    it.kind !== 'bakery' ? kvStack('Why it works', it.why) : null,
+    kvStack('What to look for', it.look_for),
+    kvStack('Entrance & lifts', it.entry_tip),
+  ], 'kv-list field-notes-list');
   return h('article', { class: 'place' },
-    h('p', { class: 'eyebrow' }, [kindLabel, it.zone, it.dayLabel].filter(Boolean).join(' · ')),
+    h('p', { class: 'eyebrow' }, [kindLabel, it.zone, it.dayLabel].filter(Boolean).join(' \u00b7 ')),
     h('h2', { class: 'place-title', id: 'place-title' }, it.name),
     it.jp ? h('p', { class: 'place-jp', lang: 'ja' }, it.jp) : null,
-    h('div', { class: 'chips' }, halalChip(it.status), it.kind === 'eat' ? dietChip(it.for_b) : null),
+    h('div', { class: 'chips' }, halalChip(it.status), it.kind === 'eat' ? dietChip(it.for_b) : null, it.kind === 'prayer' && it.access ? chip(it.access, /patron/i.test(it.access) ? 'ev ev-claim' : 'plain') : null),
     it.what || it.signature ? h('p', { class: 'body' }, it.what || it.signature) : null,
-    it.why ? h('p', { class: 'body' }, it.why) : null,
+    it.kind === 'bakery' && it.why ? h('p', { class: 'body' }, it.why) : null,
+    fieldNotes,
     grouped([
       kv('Cuisine', it.cuisine),
       kv('Where', it.where || it.area),
       kv('Hours', it.hours),
+      kv('Last entry', it.last_entry),
       kv('Opens', it.opens),
       kv('Closed', it.closed),
       kv('Price', it.price || it.cost),
       kv('Booking', it.booking),
+      kv('Tax-free', it.tax_free),
+      kv('Access', it.access),
       kv('Walk', walkCaption(it)),
       kv('Getting there', it.getting_there),
       kv('Seats', it.seats),
@@ -482,7 +498,9 @@ function placeDetail(it) { // S7: the row expanded, nothing new
     it.status ? h('p', { class: 'footnote' }, it.certifier ? `Certified by ${it.certifier}` : 'Certifier not named') : null,
     it.alcohol ? h('p', { class: 'footnote' }, `Alcohol served: ${it.alcohol}`) : null,
     it.verified ? h('p', { class: 'footnote' }, `Checked ${t.halal.as_of}: ${it.verified}`) : null,
+    it.checked_on ? h('p', { class: 'footnote' }, `Primary source checked ${it.checked_on}${it.verification_note ? `: ${it.verification_note}` : '.'}`) : null,
     it.pacing ? h('p', { class: 'note' }, icon('figureWalk'), h('span', null, it.pacing)) : null,
+    it.rain_alt ? h('p', { class: 'note' }, icon('leaf'), h('span', null, it.rain_alt)) : null,
     it.tags && it.tags.length ? h('div', { class: 'chips' }, it.tags.map((x) => chip(x, 'plain'))) : null,
     goButtons(q, it.name, it.mode || 'transit'),
     it.source ? h('p', { class: 'source' }, ext(it.source, [icon('link'), h('span', null, 'Source')], { class: 'text-btn', 'aria-label': `Source for ${it.name}` })) : null);
@@ -491,6 +509,11 @@ function placeDetail(it) { // S7: the row expanded, nothing new
 function kv(label, value) {
   if (!value) return null;
   return h('li', { class: 'kv' }, h('span', { class: 'kv-label' }, label), h('span', { class: 'kv-value' }, value));
+}
+
+function kvStack(label, value) {
+  if (!value) return null;
+  return h('li', { class: 'kv stack' }, h('span', { class: 'kv-label' }, label), h('span', { class: 'kv-value' }, value));
 }
 
 // Segmented control as a radio group with arrow keys (C4, N6).
@@ -700,22 +723,104 @@ function rhythm(selected) {
       h('li', null, 'Bar height: how full the day is')));
 }
 
+function dayJumpStrip(selected) {
+  const t = ctx.trip;
+  const today = now().iso;
+  const scroller = h('div', { class: 'day-strip-scroll' },
+    h('ol', { class: 'day-strip-list' }, t.days.map((d, idx) => {
+      const shortDate = (d.date || '').split(' ').slice(0, 2).join(' ') || d.n;
+      const active = idx === selected;
+      return h('li', null,
+        link(`days/${d.iso}`, {
+          class: `day-pill ${d.iso === today ? 'is-today' : ''}`,
+          'aria-current': active ? 'page' : null,
+          'aria-label': `${d.date}: ${d.title}`,
+          'data-key': `pill-${d.iso}`,
+        },
+        h('span', { class: `type-dot t-${d.type}`, 'aria-hidden': 'true' }),
+        h('span', { class: 'day-pill-date nums' }, shortDate),
+        h('span', { class: 'day-pill-title' }, d.title)));
+    })));
+  queueMicrotask(() => {
+    const activeEl = scroller.querySelector('[aria-current="page"]');
+    if (activeEl && scroller.scrollWidth > scroller.clientWidth) {
+      scroller.scrollLeft = Math.max(0, activeEl.offsetLeft - (scroller.clientWidth - activeEl.offsetWidth) / 2);
+    }
+  });
+  return h('nav', { class: 'day-strip', 'aria-label': 'Jump to day' }, scroller);
+}
+
+function dayAreaBar(d) {
+  const t = ctx.trip;
+  if (!t.halal || !Array.isArray(t.halal.groups) || !t.halal.groups.length) return null;
+  const groups = dayHalalGroups(t, d.iso);
+  if (!groups.length) return null;
+  const primary = groups[0];
+  const prayerCount = groups.reduce((acc, g) => acc + cache.prayer.filter((p) => p.g === g).length, 0);
+  return h('nav', { class: 'day-area-bar', 'aria-label': 'Halal food and prayer rooms for this day' },
+    groups.map((g) => {
+      const label = t.halal.groups.find((x) => x.id === g)?.label || g;
+      const count = cache.halal.filter((p) => p.g === g).length;
+      return link(`food/halal?g=${g}`, { class: 'area-link', 'data-key': `day-halal-${d.iso}-${g}` },
+        icon('fork'), h('span', null, `Halal: ${label}`), h('span', { class: 'count nums' }, String(count)));
+    }),
+    link(`food/halal?g=${primary}&focus=prayer`, { class: 'area-link', 'data-key': `day-prayer-${d.iso}` },
+      icon('moon'), h('span', null, 'Prayer rooms'), h('span', { class: 'count nums' }, String(prayerCount))));
+}
+
+function spaRow(s) {
+  const q = s.maps_query || s.name;
+  return h('li', { class: 'row' },
+    h('div', { class: 'row-link spa-item' },
+      h('span', { class: 'row-text' },
+        h('span', { class: 'row-title' }, s.name),
+        s.area ? h('span', { class: 'row-sub' }, s.area) : null,
+        s.why ? h('span', { class: 'row-sub' }, s.why) : null,
+        h('span', { class: 'row-facts' }, [s.hours, s.price, s.booking].filter(Boolean).join(' \u00b7 ')),
+        s.caveat ? h('span', { class: 'row-meta' }, s.caveat) : null,
+        s.privacy ? h('span', { class: 'row-chips' }, chip(s.privacy, 'ev ev-certified', 'seal')) : null)),
+    q ? ext(mapsUrl(q), icon('arrowOut'), { class: 'row-go', 'aria-label': `${s.name} in Maps` }) : null);
+}
+
 function dayDetail(d, i) {
   const t = ctx.trip;
   const v = `days/${d.iso}`;
+  const isToday = d.iso === now().iso;
+  const watch = d.watch_outs || [];
   const header = h('header', { class: 'day-head', tabindex: '0', 'aria-label': `${d.date}, ${d.title}. Use left and right arrow keys for other days.`, onkeydown: (e) => {
     const nd = e.key === 'ArrowLeft' ? t.days[i - 1] : e.key === 'ArrowRight' ? t.days[i + 1] : null;
     if (nd) { e.preventDefault(); lastFocus = 'day-head'; go(`days/${nd.iso}`); }
   }, 'data-key': 'day-head' },
-  h('p', { class: 'eyebrow' }, `Day ${i + 1} of ${t.days.length}${d.wkd ? ' · Weekend' : ''}`),
+  h('p', { class: 'eyebrow' }, `Day ${i + 1} of ${t.days.length}${d.wkd ? ' \u00b7 Weekend' : ''}`),
   h('h1', { class: 'day-title', id: 'view-title', 'aria-live': 'polite' }, d.title),
-  h('p', { class: 'day-place' }, `${d.date} · ${d.place}`),
-  h('div', { class: 'chips' }, typeChip(d.type), chip(LOAD[d.load], 'plain'), d.walk ? chip(`Walking: ${d.walk}`, 'plain', 'figureWalk') : null));
+  h('p', { class: 'day-place' }, `${d.date} \u00b7 ${d.place}`),
+  h('div', { class: 'chips' },
+    isToday ? chip('Today', 'now') : null,
+    typeChip(d.type),
+    chip(LOAD[d.load], 'plain'),
+    d.walk ? chip(`Walking: ${d.walk}`, 'plain', 'figureWalk') : null,
+    d.checked_on ? chip(`Checked ${d.checked_on}`, 'plain') : null));
   return h('div', { class: 'day-detail' },
+    dayJumpStrip(i),
     header,
     h('p', { class: 'body lead' }, d.summary),
     notBookedNote(d.iso),
     d.open ? h('p', { class: 'callout' }, icon('question'), h('span', null, h('strong', null, 'To decide: '), d.open)) : null,
+    dayAreaBar(d),
+    d.route_strategy ? h('section', { class: 'strategy-card card', 'aria-label': 'Route and pacing' },
+      h('p', { class: 'eyebrow' }, 'Route & pacing'),
+      h('p', { class: 'body' }, d.route_strategy)) : null,
+    d.logistics && d.logistics.length ? h('details', { class: 'disclosure' },
+      h('summary', null, h('span', { class: 'summary-label' }, `Entrances, tickets & practical logistics (${d.logistics.length})`)),
+      grouped(d.logistics.map((x) => kvStack(x.label, x.value)), 'kv-list')) : null,
+    d.rain_plan && (Array.isArray(d.rain_plan) ? d.rain_plan.length : d.rain_plan) ? h('details', { class: 'disclosure' },
+      h('summary', null, h('span', { class: 'summary-label' }, 'Rain & low-energy alternatives')),
+      Array.isArray(d.rain_plan)
+        ? h('ul', { class: 'bullets' }, d.rain_plan.map((r) => h('li', null, r)))
+        : h('div', { class: 'disclosure-pad' }, h('p', { class: 'body' }, d.rain_plan))) : null,
+    d.spa_options && d.spa_options.length ? h('details', { class: 'disclosure' },
+      h('summary', null, h('span', { class: 'summary-label' }, `Private & women-only spa options (${d.spa_options.length})`)),
+      grouped(d.spa_options.map(spaRow))) : null,
     h('div', { class: 'day-grid' },
       section('The day', h('ol', { class: 'flow' }, d.flow.map((f) => h('li', { class: `flow-item lvl-${f.level}` },
         h('span', { class: 'flow-when' }, f.when), h('span', { class: 'flow-text' }, f.text), chip(FLOW_LEVEL[f.level], `lvl lvl-${f.level}`))))),
@@ -723,12 +828,13 @@ function dayDetail(d, i) {
     section('End of the day', h('div', { class: 'card' }, h('p', { class: 'body' }, d.home.how), goButtons(d.home.maps_query || t.hotel.maps_query, 'the hotel', d.home.mode),
       d.home.source ? ext(d.home.source, [icon('link'), h('span', null, 'Source')], { class: 'text-btn' }) : null)),
     section('Good to know', d.pacing ? h('p', { class: 'note' }, icon('figureWalk'), h('span', null, d.pacing)) : null,
-      d.watch_outs.length ? h('ul', { class: 'bullets warn' }, d.watch_outs.map((w) => h('li', null, w))) : null),
+      watch.length ? h('ul', { class: 'bullets warn' }, watch.slice(0, 4).map((w) => h('li', null, w))) : null,
+      watch.length > 4 ? h('details', { class: 'disclosure' }, h('summary', null, `${watch.length - 4} more watch-outs`), h('ul', { class: 'bullets warn' }, watch.slice(4).map((w) => h('li', null, w)))) : null),
     d.decisions.length ? section('Questions to settle', h('ul', { class: 'bullets' }, d.decisions.map((w) => h('li', null, w)))) : null,
     d.sources.length ? section('Sources', h('details', { class: 'disclosure' }, h('summary', null, `${d.sources.length} sources`), h('ul', { class: 'sources' }, d.sources.map((s) => h('li', null, ext(s, sourceLabel(s))))))) : null,
     h('nav', { class: 'day-pager', 'aria-label': 'Other days' },
-      i > 0 ? link(`days/${t.days[i - 1].iso}`, { class: 'btn btn-gray' }, icon('chevronLeft'), t.days[i - 1].date) : h('span'),
-      i < t.days.length - 1 ? link(`days/${t.days[i + 1].iso}`, { class: 'btn btn-gray' }, t.days[i + 1].date, icon('chevronRight')) : h('span')));
+      i > 0 ? link(`days/${t.days[i - 1].iso}`, { class: 'btn btn-gray' }, icon('chevronLeft'), h('span', { class: 'pager-text' }, `${t.days[i - 1].date} \u00b7 ${t.days[i - 1].title}`)) : h('span'),
+      i < t.days.length - 1 ? link(`days/${t.days[i + 1].iso}`, { class: 'btn btn-gray' }, h('span', { class: 'pager-text' }, `${t.days[i + 1].date} \u00b7 ${t.days[i + 1].title}`), icon('chevronRight')) : h('span')));
 }
 
 function sourceLabel(url) {
@@ -739,11 +845,28 @@ function zoneCard(d, z, zi, v) {
   const gt = z.getting_there || {};
   const items = cache.places.filter((p) => p.dayISO === d.iso && p.zone === z.name);
   const by = (k) => items.filter((p) => p.kind === k);
-  const disclose = (k, label) => (by(k).length ? h('details', { class: 'disclosure' }, h('summary', null, `${label} (${by(k).length})`), grouped(by(k).map((p) => placeRow(p, v)))) : null);
+  const noStops = by('stops').length === 0;
+  const firstFallback = noStops ? ['eat', 'shop', 'sweet'].find((k) => by(k).length > 0) : null;
+  const disclose = (k, label) => {
+    const list = by(k);
+    if (!list.length) return null;
+    const preview = list.slice(0, 2).map((x) => x.name).join(', ') + (list.length > 2 ? '\u2026' : '');
+    return h('details', { class: 'disclosure', open: firstFallback === k ? true : null },
+      h('summary', null,
+        h('span', { class: 'summary-label' }, `${label} (${list.length})`, h('span', { class: 'summary-preview' }, ` \u00b7 ${preview}`))),
+      grouped(list.map((p) => placeRow(p, v))));
+  };
   return h('section', { class: 'zone card', 'aria-labelledby': `zone-${zi}` },
-    h('h3', { class: 'zone-title', id: `zone-${zi}` }, h('span', { class: 'zone-num', 'aria-hidden': 'true' }, String(zi + 1)), h('span', null, z.name)),
+    h('h3', { class: 'zone-title', id: `zone-${zi}` },
+      h('span', { class: 'zone-num', 'aria-hidden': 'true' }, String(zi + 1)),
+      h('span', { class: 'zone-name' }, z.name),
+      z.badge ? chip(z.badge, 'next') : null),
     h('p', { class: 'meta nums' }, z.time),
     h('p', { class: 'body' }, z.purpose),
+    z.what_to_look_for ? h('p', { class: 'zone-highlight' }, z.what_to_look_for) : null,
+    z.tips && z.tips.length ? h('details', { class: 'disclosure zone-tips' },
+      h('summary', null, h('span', { class: 'summary-label' }, `Zone tips & entry details (${z.tips.length})`)),
+      h('ul', { class: 'bullets' }, z.tips.map((tip) => h('li', null, tip)))) : null,
     gt.how ? h('div', { class: 'getting' },
       h('p', { class: 'getting-label' }, icon(MODE_ICON[gt.mode] || 'train'), 'Getting there'),
       h('p', { class: 'body' }, gt.how),
@@ -765,6 +888,7 @@ function viewFood(r) {
   let list;
   if (cat.id === 'halal') {
     const todayG = t.halal.dayGroup[now().iso];
+    const todayGroups = dayHalalGroups(t, now().iso);
     const g = r.params.get('g') || defaultHalalGroup(t, now().iso);
     const certOnly = ctx.prefs.certOnly === true;
     const places = cache.halal.filter((p) => p.g === g && (!certOnly || p.status === 'Halal certified'))
@@ -778,8 +902,14 @@ function viewFood(r) {
       h('div', { class: 'filters' },
         h('label', { class: 'picker' }, h('span', { class: 'picker-label' }, 'Area'),
           h('select', { class: 'select', 'data-key': 'area', onchange: (e) => { lastFocus = 'area'; go(`food/halal?g=${e.target.value}`, { replace: true }); } },
-            t.halal.groups.map((x) => h('option', { value: x.id, selected: x.id === g }, x.id === todayG ? `${x.label} (Today)` : x.label)))),
+            t.halal.groups.map((x) => h('option', { value: x.id, selected: x.id === g }, x.id === todayG ? `${x.label} (Today)` : todayGroups.includes(x.id) ? `${x.label} (Today)` : x.label)))),
         toggleRow('Certified only', certOnly, (on) => { ctx.setPref('certOnly', on); draw(); })),
+      todayGroups.length > 1 ? h('div', { class: 'day-area-bar', role: 'group', 'aria-label': 'Today’s areas' },
+        todayGroups.map((tg) => {
+          const lbl = t.halal.groups.find((x) => x.id === tg)?.label || tg;
+          return h('button', { type: 'button', class: `area-link ${tg === g ? 'is-active' : ''}`, onclick: () => go(`food/halal?g=${tg}`, { replace: true }) },
+            icon('pin'), h('span', null, lbl));
+        })) : null,
       h('details', { class: 'disclosure legend-box' }, h('summary', null, 'What the labels mean'),
         h('ul', { class: 'legend-list' }, HALAL_STATUS.map((s) => h('li', null, halalChip(s), h('span', null, HALAL_MEANING[s]))))),
       h('p', { class: 'caption' }, `Checked ${t.halal.as_of}. Hours and status can change, so confirm on arrival.`),

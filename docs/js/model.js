@@ -25,7 +25,9 @@ export const HOTEL_WALK_GROUPS = new Set(['umeda']);
 
 export function walkCaption(item, group) {
   const g = group || item.g;
-  if (!item.walk_min || (g && !HOTEL_WALK_GROUPS.has(g))) return '';
+  if (!item.walk_min) return '';
+  if (item.walk_anchor) return `About ${item.walk_min} min walk from ${item.walk_anchor}`;
+  if (g && !HOTEL_WALK_GROUPS.has(g)) return '';
   return `About ${item.walk_min} min walk from the hotel`;
 }
 
@@ -131,6 +133,16 @@ export function defaultHalalGroup(trip, iso) {
   return trip.halal.groups.some((x) => x.id === g) ? g : trip.halal.groups[0].id;
 }
 
+export function dayHalalGroups(trip, iso) {
+  const valid = new Set((trip.halal.groups || []).map((x) => x.id));
+  const raw = trip.halal.dayGroups && trip.halal.dayGroups[iso];
+  if (Array.isArray(raw)) {
+    const out = raw.filter((g) => valid.has(g));
+    if (out.length) return out;
+  }
+  return [defaultHalalGroup(trip, iso)];
+}
+
 // Travellers come from the payload with roles: A is the trip owner, B the second traveller.
 export function traveller(trip, role) {
   const t = (trip.travellers || []).find((x) => x.role === role);
@@ -146,7 +158,7 @@ export function searchPlaces(list, q) {
   const terms = (q || '').toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return list;
   return list.filter((it) => {
-    const hay = `${it.name} ${it.jp || ''} ${it.what || ''} ${it.zone || it.area || ''} ${it.cuisine || ''}`.toLowerCase();
+    const hay = `${it.name} ${it.jp || ''} ${it.what || ''} ${it.why || ''} ${it.look_for || ''} ${it.entry_tip || ''} ${it.zone || it.area || ''} ${it.cuisine || ''}`.toLowerCase();
     return terms.every((t) => hay.includes(t));
   });
 }

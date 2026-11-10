@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture } from './fixtures/make-fixture.mjs';
-import { nowNext, zoneRange, resolveNow, tripPhase, allPlaces, foodCategories, halalByGroup, defaultHalalGroup, walkCaption, dietKey, fill, searchPlaces } from '../docs/js/model.js';
+import { nowNext, zoneRange, resolveNow, tripPhase, allPlaces, foodCategories, halalByGroup, defaultHalalGroup, dayHalalGroups, walkCaption, dietKey, fill, searchPlaces } from '../docs/js/model.js';
 import { tokyoISO } from '../docs/js/trip.js';
 
 test('zone ranges and now/next', () => {
@@ -29,6 +29,7 @@ test('places index keeps every item with a stable id', () => {
   assert.equal(all.length, 3 * 2 * (1 + 3 + 1 + 1));
   assert.equal(new Set(all.map((p) => p.id)).size, all.length);
   assert.equal(searchPlaces(all, 'pancake ba').length, 1);
+  assert.equal(searchPlaces(all, 'entry tip ba').length, 1);
 });
 
 test('food categories follow the original rules', () => {
@@ -45,9 +46,12 @@ test('halal ordering, default group and walk captions', () => {
   assert.equal(halalByGroup(fixture, 'umeda', { certifiedOnly: true }).length, 1);
   assert.equal(defaultHalalGroup(fixture, '2030-05-09'), 'nara');
   assert.equal(defaultHalalGroup(fixture, '2031-01-01'), 'umeda');
+  assert.deepEqual(dayHalalGroups(fixture, '2030-05-08'), ['umeda', 'nara']);
+  assert.deepEqual(dayHalalGroups(fixture, '2031-01-01'), ['umeda']);
   assert.match(walkCaption(list[0]), /6 min/);
   assert.equal(walkCaption(list[1]), ''); // 0 means unknown
   assert.equal(walkCaption(fixture.halal.places[2]), ''); // not from the hotel outside Osaka
+  assert.equal(walkCaption({ walk_min: 7, walk_anchor: 'Sample Station' }), 'About 7 min walk from Sample Station');
 });
 
 test('diet labels and traveller templating', () => {

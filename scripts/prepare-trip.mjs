@@ -91,6 +91,77 @@ for (const f of updates.replace_exact_fields || []) {
   obj[last] = f.to;
 }
 
+// Structured day and directory enrichments (day-enrichments.local.json), applied after owner updates.
+if (fs.existsSync(path.join(PRIVATE_DIR, 'day-enrichments.local.json'))) {
+  const enrich = JSON.parse(read('day-enrichments.local.json'));
+  if (enrich.halal) {
+    if (enrich.halal.dayGroups) trip.halal.dayGroups = enrich.halal.dayGroups;
+    if (enrich.halal.places_patch) {
+      for (const p of trip.halal.places) {
+        const patch = enrich.halal.places_patch[p.name];
+        if (patch) Object.assign(p, patch);
+      }
+    }
+    if (enrich.halal.prayer_patch) {
+      for (const pr of trip.halal.prayer) {
+        const patch = enrich.halal.prayer_patch[pr.name];
+        if (patch) Object.assign(pr, patch);
+      }
+    }
+  }
+  if (enrich.days) {
+    for (const [iso, de] of Object.entries(enrich.days)) {
+      const d = trip.days.find((x) => x.iso === iso);
+      if (!d) throw new Error(`Enrichment day not found: ${iso}`);
+      for (const k of ['checked_on', 'summary', 'pacing', 'route_strategy', 'rain_plan', 'logistics', 'spa_options']) {
+        if (de[k] !== undefined) d[k] = de[k];
+      }
+      if (de.flow_patch) {
+        for (const [fi, fp] of Object.entries(de.flow_patch)) {
+          const item = d.flow[Number(fi)];
+          if (!item) throw new Error(`Flow index ${fi} missing on ${iso}`);
+          Object.assign(item, fp);
+        }
+      }
+      if (de.watch_outs_replace) {
+        for (const { match, text } of de.watch_outs_replace) {
+          const idx = d.watch_outs.findIndex((w) => w.includes(match));
+          if (idx >= 0) d.watch_outs[idx] = text;
+        }
+      }
+      if (de.watch_outs_prepend) d.watch_outs = [...de.watch_outs_prepend, ...d.watch_outs];
+      if (de.watch_outs_append) d.watch_outs = [...d.watch_outs, ...de.watch_outs_append];
+      if (de.sources_append) {
+        for (const s of de.sources_append) if (!d.sources.includes(s)) d.sources.push(s);
+      }
+      if (de.zones) {
+        for (const [zi, ze] of Object.entries(de.zones)) {
+          const z = d.zones[Number(zi)];
+          if (!z) throw new Error(`Zone index ${zi} missing on ${iso}`);
+          for (const k of ['badge', 'purpose', 'what_to_look_for', 'tips']) {
+            if (ze[k] !== undefined) z[k] = ze[k];
+          }
+          if (ze.getting_there_patch) Object.assign(z.getting_there, ze.getting_there_patch);
+          if (ze.items_patch) {
+            const norm = (s) => String(s || '').toLowerCase().replace(/[\u2018\u2019]/g, "'");
+            for (const kind of ['stops', 'eat', 'sweet', 'shop']) {
+              for (const it of z[kind] || []) {
+                const nIt = norm(it.name);
+                const ip = ze.items_patch[it.name] || Object.entries(ze.items_patch).find(([key]) => nIt.includes(norm(key)) || norm(key).includes(nIt))?.[1];
+                if (ip) Object.assign(it, ip);
+              }
+            }
+          }
+          for (const kind of ['stops', 'eat', 'sweet', 'shop']) {
+            const add = ze[`${kind}_append`];
+            if (Array.isArray(add) && add.length) z[kind] = [...(z[kind] || []), ...add];
+          }
+        }
+      }
+    }
+  }
+}
+
 // To book: the owner's transfer items, then restaurants by what their own booking note says.
 // needs: the note asks for a booking or a lead time. optional: bookable, but walk-in is not ruled out.
 const NEEDS = /\b(required|book (now|ahead|by)|\d+ days? ahead|by (mon|tue|wed|thu|fri|sat|sun)\b)/i;

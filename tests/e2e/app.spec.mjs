@@ -99,6 +99,13 @@ test.describe('unlocked app', () => {
     if (page.viewportSize().width >= 600) await expect(page.locator('.day-title')).toHaveText('Sample day 2'); // L4 split shows today
     await page.goto(url('days/2030-05-08'));
     await expect(page.locator('.day-title')).toHaveText('Sample day 2');
+    if (page.viewportSize().width < 600) await expect(page.locator('.day-strip .day-pill')).toHaveCount(3);
+    await expect(page.locator('.day-area-bar')).toContainText('Halal: Umeda');
+    await expect(page.locator('.day-area-bar')).toContainText('Halal: Nara');
+    await expect(page.locator('.strategy-card')).toContainText('Sample route strategy for day 2.');
+    await expect(page.locator('summary', { hasText: 'Entrances, tickets & practical logistics (1)' })).toBeVisible();
+    await expect(page.locator('summary', { hasText: 'Rain & low-energy alternatives' })).toBeVisible();
+    await expect(page.locator('.zone-highlight').first()).toContainText('Sample zone highlight ba.');
     for (const t of ['The day', 'Zones', 'End of the day', 'Good to know', 'Questions to settle', 'Sources']) await expect(page.getByRole('heading', { name: t, exact: true })).toBeVisible();
     await shot(page, testInfo, 'day');
     await page.getByRole('button', { name: /^Next day/ }).click();
@@ -112,6 +119,9 @@ test.describe('unlocked app', () => {
     await page.locator('.row-link', { hasText: 'Sample Garden ba' }).click();
     const detail = page.locator('.sheet, .inspector').filter({ hasText: 'Sample Garden ba' });
     await expect(detail.getByRole('heading', { name: 'Sample Garden ba' })).toBeVisible();
+    await expect(detail).toContainText('Sample reason ba.');
+    await expect(detail).toContainText('Sample highlight ba.');
+    await expect(detail).toContainText('Sample entry tip ba.');
     await expect(detail.getByRole('link', { name: 'Walk to Sample Garden ba' })).toHaveAttribute('href', /google\.com\/maps\/dir\/.*travelmode=walking/);
     await shot(page, testInfo, 'place-sheet');
     if (await page.locator('.sheet').count()) {
@@ -212,7 +222,7 @@ test.describe('unlocked app', () => {
   test('every interactive target is at least 44px (sampled)', async ({ page }) => {
     for (const v of ['today', 'days/2030-05-08', 'food/halal', 'places']) {
       await page.goto(url(v));
-      const small = await page.evaluate(() => [...document.querySelectorAll('.tab, .top-tab, .icon-btn, .btn, .row-link, .filter-chip, .segmented button, .quick-btn, .rhythm-day a, .disclosure > summary')]
+      const small = await page.evaluate(() => [...document.querySelectorAll('.tab, .top-tab, .icon-btn, .btn, .row-link, .filter-chip, .segmented button, .quick-btn, .rhythm-day a, .day-pill, .area-link, .disclosure > summary')]
         .filter((el) => el.offsetParent !== null)
         .map((el) => { const r = el.getBoundingClientRect(); return { c: el.className, w: Math.round(r.width), h: Math.round(r.height) }; })
         .filter((r) => r.w < 44 || r.h < 44)

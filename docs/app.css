@@ -150,6 +150,7 @@ body.just-unlocked .shell { animation: fade-in var(--dur-base) var(--ease-decele
 .row-jp { color: var(--label-secondary); font-family: var(--font-jp); font-size: var(--fs-footnote); font-weight: var(--fw-regular); }
 .row-sub { color: var(--label-secondary); font-size: var(--fs-subheadline); line-height: var(--lh-subheadline); }
 .row-sub.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.row-facts { color: var(--label-secondary); font-size: var(--fs-footnote); line-height: var(--lh-footnote); }
 .row-meta { color: var(--label-secondary); font-size: var(--fs-footnote); line-height: var(--lh-footnote); }
 .row-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 .row-time { flex: none; width: 4.6em; color: var(--label-secondary); font-size: var(--fs-footnote); }
@@ -181,10 +182,13 @@ body.just-unlocked .shell { animation: fade-in var(--dur-base) var(--ease-decele
 
 /* Disclosure (C6) */
 .disclosure { margin: var(--space-3) 0; border-radius: var(--radius-md); background: var(--bg-grouped-secondary); overflow: hidden; }
-.disclosure > summary { display: flex; align-items: center; justify-content: space-between; min-height: var(--hit); padding: 0 var(--cell-pad-x); color: var(--tint); font-size: var(--fs-subheadline); font-weight: var(--fw-semibold); cursor: pointer; list-style: none; }
+.disclosure > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--hit); padding: 0 var(--cell-pad-x); color: var(--tint); font-size: var(--fs-subheadline); font-weight: var(--fw-semibold); cursor: pointer; list-style: none; }
 .disclosure > summary::-webkit-details-marker { display: none; }
-.disclosure > summary::after { content: ""; width: 8px; height: 8px; margin-top: -4px; border-right: 2px solid var(--label-tertiary); border-bottom: 2px solid var(--label-tertiary); transform: rotate(45deg); transition: transform var(--dur-base) var(--ease-standard); }
+.disclosure > summary::after { content: ""; flex: none; width: 8px; height: 8px; margin-top: -4px; border-right: 2px solid var(--label-tertiary); border-bottom: 2px solid var(--label-tertiary); transform: rotate(45deg); transition: transform var(--dur-base) var(--ease-standard); }
 .disclosure[open] > summary::after { margin-top: 4px; transform: rotate(-135deg); }
+.summary-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summary-preview { color: var(--label-secondary); font-size: var(--fs-footnote); font-weight: var(--fw-regular); }
+.disclosure-pad { padding: var(--space-2) var(--cell-pad-x) var(--space-3); box-shadow: inset 0 var(--hairline) 0 var(--separator); }
 .disclosure > .grouped { border-radius: 0; box-shadow: inset 0 var(--hairline) 0 var(--separator); }
 .disclosure .bullets { border-radius: 0; }
 
@@ -267,6 +271,21 @@ body.just-unlocked .shell { animation: fade-in var(--dur-base) var(--ease-decele
 .legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: var(--space-4) 0 0; padding: 0 var(--space-5); list-style: none; color: var(--label-secondary); font-size: var(--fs-caption1); }
 .legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
 .days-list .row-chips { margin-top: var(--space-1); }
+.day-strip { margin: var(--space-1) 0 var(--space-3); }
+.day-strip-scroll { overflow-x: auto; scrollbar-width: none; padding: var(--space-1) 0; }
+.day-strip-scroll::-webkit-scrollbar { display: none; }
+.day-strip-list { display: flex; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.day-pill { flex: none; display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--hit); min-width: var(--hit); padding: 0 var(--space-3); border-radius: var(--radius-pill); background: var(--bg-grouped-secondary); box-shadow: 0 0 0 var(--hairline) var(--card-edge), var(--shadow-card); color: var(--label); font-size: var(--fs-footnote); font-weight: var(--fw-medium); white-space: nowrap; transition: background-color var(--dur-fast) var(--ease-standard); }
+.day-pill[aria-current="page"] { background: var(--tint-soft); color: var(--tint); font-weight: var(--fw-semibold); }
+.day-pill.is-today .day-pill-date { color: var(--tint); font-weight: var(--fw-bold); }
+.day-pill-title { max-width: 9em; overflow: hidden; text-overflow: ellipsis; color: var(--label-secondary); }
+.day-pill[aria-current="page"] .day-pill-title { color: var(--tint); }
+.day-area-bar { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-4) 0; }
+.area-link { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--hit); min-width: var(--hit); padding: 0 var(--space-4); border: 0; border-radius: var(--radius-pill); background: var(--tint-soft); color: var(--tint); font-size: var(--fs-footnote); font-weight: var(--fw-semibold); cursor: pointer; }
+.area-link.is-active { background: var(--tint-fill); color: var(--on-tint); }
+.area-link .count { padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--bg-elevated); color: var(--label-secondary); font-size: var(--fs-caption2); }
+.strategy-card { margin: var(--space-4) 0; border-left: 3px solid var(--tint); }
+.strategy-card .body { margin-bottom: 0; font-size: var(--fs-subheadline); line-height: var(--lh-subheadline); }
 .day-head { margin: var(--space-2) 0 var(--space-3); border-radius: var(--radius-md); }
 .day-title { margin: var(--space-1) 0; scroll-margin-top: calc(var(--nav-h) + var(--space-5)); font-family: var(--font-display); font-size: var(--fs-title2); line-height: var(--lh-title2); font-weight: var(--fw-bold); }
 .flow { margin: 0; padding: 0; list-style: none; border-radius: var(--radius-md); background: var(--bg-grouped-secondary); }
@@ -277,15 +296,18 @@ body.just-unlocked .shell { animation: fade-in var(--dur-base) var(--ease-decele
 .flow-text { font-size: var(--fs-subheadline); line-height: var(--lh-subheadline); }
 .zones > .group-title { margin-top: var(--space-7); }
 .zone { margin: var(--space-4) 0; }
-.zone-title { display: flex; align-items: center; gap: var(--space-3); margin: 0; font-size: var(--fs-title3); line-height: var(--lh-title3); font-weight: var(--fw-semibold); }
+.zone-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: 0; font-size: var(--fs-title3); line-height: var(--lh-title3); font-weight: var(--fw-semibold); }
+.zone-name { flex: 1; min-width: 8em; }
 .zone-num { display: inline-grid; flex: none; place-items: center; width: 1.6em; height: 1.6em; border-radius: 50%; background: var(--tint-fill); color: var(--on-tint); font-size: var(--fs-footnote); font-weight: var(--fw-bold); }
+.zone-highlight { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border-left: 3px solid var(--tint); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--bg-grouped-tertiary); font-size: var(--fs-subheadline); line-height: var(--lh-subheadline); }
 .zone .grouped, .zone .disclosure { background: var(--bg-grouped-tertiary); }
 .getting { margin: var(--space-4) 0; padding: var(--space-4); border-radius: var(--radius-md); background: var(--bg-grouped-tertiary); }
 .getting-label { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--label-secondary); font-size: var(--fs-footnote); font-weight: var(--fw-semibold); }
 .getting .body { font-size: var(--fs-subheadline); line-height: var(--lh-subheadline); }
 .kind-title { margin: var(--space-4) 0 var(--space-2); padding: 0 var(--space-4); color: var(--label-secondary); font-size: var(--fs-caption1); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: var(--tracking-caps); }
 .day-pager { display: flex; justify-content: space-between; gap: var(--space-4); margin: var(--space-8) 0 var(--space-5); }
-.day-pager .btn { flex: 0 1 auto; }
+.day-pager .btn { flex: 0 1 auto; max-width: 48%; min-width: var(--hit); }
+.pager-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- Place ---------- */
 .place-title { margin: var(--space-1) 0 0; font-family: var(--font-display); font-size: var(--fs-title2); line-height: var(--lh-title2); font-weight: var(--fw-bold); }
