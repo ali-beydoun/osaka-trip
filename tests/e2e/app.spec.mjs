@@ -102,6 +102,8 @@ test.describe('unlocked app', () => {
     if (page.viewportSize().width < 600) await expect(page.locator('.day-strip .day-pill')).toHaveCount(3);
     await expect(page.locator('.day-area-bar')).toContainText('Halal: Umeda');
     await expect(page.locator('.day-area-bar')).toContainText('Halal: Nara');
+    await expect(page.locator('.day-area-bar a', { hasText: 'Prayer: Umeda' })).toContainText('1');
+    await expect(page.locator('.day-area-bar a', { hasText: 'Prayer: Nara' })).toContainText('1');
     await expect(page.locator('.strategy-card')).toContainText('Sample route strategy for day 2.');
     await expect(page.locator('summary', { hasText: 'Entrances, tickets & practical logistics (1)' })).toBeVisible();
     await expect(page.locator('summary', { hasText: 'Rain & low-energy alternatives' })).toBeVisible();

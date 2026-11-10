@@ -35,7 +35,10 @@ export const fixture = {
     places: [item('Sample Certified Ramen', { status: 'Halal certified', certifier: 'Sample Body', alcohol: 'No', g: 'umeda', walk_min: 6, area: 'Umeda', city: 'Osaka', cuisine: 'Ramen', verified: 'Sample check' }),
       item('Sample Claim Curry', { status: 'Halal (own claim)', certifier: '', alcohol: 'Unknown', g: 'umeda', walk_min: 0, area: 'Umeda', city: 'Osaka', cuisine: 'Curry', verified: 'Unverified sample' }),
       item('Sample Nara Kebab', { status: 'Muslim-friendly', certifier: '', alcohol: 'Yes', g: 'nara', walk_min: 8, area: 'Nara', city: 'Nara', cuisine: 'Kebab', verified: 'Sample' })],
-    prayer: [{ name: 'Sample Prayer Room', area: 'Umeda', where: 'Sample floor 3', hours: '10:00 to 20:00', access: 'Sample public room', maps_query: 'Sample Prayer Room', source: 'https://example.com/p', g: 'umeda' }],
+    prayer: [
+      { name: 'Sample Prayer Room', area: 'Umeda', where: 'Sample floor 3', hours: '10:00 to 20:00', access: 'Sample public room', maps_query: 'Sample Prayer Room', source: 'https://example.com/p', g: 'umeda' },
+      { name: 'Sample Nara Prayer', area: 'Nara', where: 'Sample floor 1', hours: '09:00 to 17:00', access: 'Sample public room', maps_query: 'Sample Nara Prayer', source: 'https://example.com/pn', g: 'nara' },
+    ],
     dropped: [{ name: 'Sample Closed Place', reason: 'Closed in sample.' }],
     dayGroup: { '2030-05-07': 'umeda', '2030-05-08': 'umeda', '2030-05-09': 'nara' },
     dayGroups: { '2030-05-07': ['umeda'], '2030-05-08': ['umeda', 'nara'], '2030-05-09': ['nara'] },

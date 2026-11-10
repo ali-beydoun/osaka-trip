@@ -755,8 +755,9 @@ function dayAreaBar(d) {
   if (!t.halal || !Array.isArray(t.halal.groups) || !t.halal.groups.length) return null;
   const groups = dayHalalGroups(t, d.iso);
   if (!groups.length) return null;
-  const primary = groups[0];
-  const prayerCount = groups.reduce((acc, g) => acc + cache.prayer.filter((p) => p.g === g).length, 0);
+  const prayerGroups = groups
+    .map((g) => ({ g, label: t.halal.groups.find((x) => x.id === g)?.label || g, count: cache.prayer.filter((p) => p.g === g).length }))
+    .filter((x) => x.count > 0);
   return h('nav', { class: 'day-area-bar', 'aria-label': 'Halal food and prayer rooms for this day' },
     groups.map((g) => {
       const label = t.halal.groups.find((x) => x.id === g)?.label || g;
@@ -764,8 +765,8 @@ function dayAreaBar(d) {
       return link(`food/halal?g=${g}`, { class: 'area-link', 'data-key': `day-halal-${d.iso}-${g}` },
         icon('fork'), h('span', null, `Halal: ${label}`), h('span', { class: 'count nums' }, String(count)));
     }),
-    link(`food/halal?g=${primary}&focus=prayer`, { class: 'area-link', 'data-key': `day-prayer-${d.iso}` },
-      icon('moon'), h('span', null, 'Prayer rooms'), h('span', { class: 'count nums' }, String(prayerCount))));
+    prayerGroups.map(({ g, label, count }) => link(`food/halal?g=${g}&focus=prayer`, { class: 'area-link', 'data-key': `day-prayer-${d.iso}-${g}` },
+      icon('moon'), h('span', null, prayerGroups.length > 1 ? `Prayer: ${label}` : 'Prayer rooms'), h('span', { class: 'count nums' }, String(count)))));
 }
 
 function spaRow(s) {
@@ -778,7 +779,7 @@ function spaRow(s) {
         s.why ? h('span', { class: 'row-sub' }, s.why) : null,
         h('span', { class: 'row-facts' }, [s.hours, s.price, s.booking].filter(Boolean).join(' \u00b7 ')),
         s.caveat ? h('span', { class: 'row-meta' }, s.caveat) : null,
-        s.privacy ? h('span', { class: 'row-chips' }, chip(s.privacy, 'ev ev-certified', 'seal')) : null)),
+        s.privacy ? h('span', { class: 'row-chips' }, chip(s.privacy, 'plain')) : null)),
     q ? ext(mapsUrl(q), icon('arrowOut'), { class: 'row-go', 'aria-label': `${s.name} in Maps` }) : null);
 }
 
