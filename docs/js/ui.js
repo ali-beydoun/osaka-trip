@@ -771,15 +771,25 @@ function dayAreaBar(d) {
 
 function spaRow(s) {
   const q = s.maps_query || s.name;
+  const line = (lbl, val, cls = 'row-facts') => val ? h('span', { class: cls }, h('strong', null, `${lbl}: `), val) : null;
   return h('li', { class: 'row' },
     h('div', { class: 'row-link spa-item' },
       h('span', { class: 'row-text' },
         h('span', { class: 'row-title' }, s.name),
         s.area ? h('span', { class: 'row-sub' }, s.area) : null,
+        (s.privacy || s.checked_on) ? h('span', { class: 'row-chips' },
+          s.privacy ? chip(s.privacy, 'plain') : null,
+          s.checked_on ? chip(`Checked ${s.checked_on}`, 'plain') : null) : null,
         s.why ? h('span', { class: 'row-sub' }, s.why) : null,
-        h('span', { class: 'row-facts' }, [s.hours, s.price, s.booking].filter(Boolean).join(' \u00b7 ')),
-        s.caveat ? h('span', { class: 'row-meta' }, s.caveat) : null,
-        s.privacy ? h('span', { class: 'row-chips' }, chip(s.privacy, 'plain')) : null)),
+        line('Menu', s.price),
+        line('Hours', s.hours),
+        line('Rooms', s.attendance),
+        line('Booking', s.booking),
+        line('Notes', s.caveat, 'row-meta'),
+        (s.source || s.booking_url) ? h('span', { class: 'row-facts' },
+          s.source ? ext(s.source, [icon('link'), h('span', null, `Source (${sourceLabel(s.source)})`)], { class: 'text-btn inline' }) : null,
+          s.source && s.booking_url ? ' \u00b7 ' : null,
+          s.booking_url ? ext(s.booking_url, [icon('link'), h('span', null, `Book (${sourceLabel(s.booking_url)})`)], { class: 'text-btn inline' }) : null) : null)),
     q ? ext(mapsUrl(q), icon('arrowOut'), { class: 'row-go', 'aria-label': `${s.name} in Maps` }) : null);
 }
 
@@ -820,7 +830,8 @@ function dayDetail(d, i) {
         ? h('ul', { class: 'bullets' }, d.rain_plan.map((r) => h('li', null, r)))
         : h('div', { class: 'disclosure-pad' }, h('p', { class: 'body' }, d.rain_plan))) : null,
     d.spa_options && d.spa_options.length ? h('details', { class: 'disclosure' },
-      h('summary', null, h('span', { class: 'summary-label' }, `Private & women-only spa options (${d.spa_options.length})`)),
+      h('summary', null, h('span', { class: 'summary-label' }, `Optional massage, facial & spa (${d.spa_options.length})`)),
+      d.spa_intro ? h('div', { class: 'disclosure-pad' }, h('p', { class: 'body' }, d.spa_intro)) : null,
       grouped(d.spa_options.map(spaRow))) : null,
     h('div', { class: 'day-grid' },
       section('The day', h('ol', { class: 'flow' }, d.flow.map((f) => h('li', { class: `flow-item lvl-${f.level}` },

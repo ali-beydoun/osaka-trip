@@ -116,7 +116,7 @@ if (fs.existsSync(path.join(PRIVATE_DIR, 'day-enrichments.local.json'))) {
     for (const [iso, de] of Object.entries(enrich.days)) {
       const d = trip.days.find((x) => x.iso === iso);
       if (!d) throw new Error(`Enrichment day not found: ${iso}`);
-      for (const k of ['checked_on', 'summary', 'pacing', 'route_strategy', 'rain_plan', 'logistics', 'spa_options']) {
+      for (const k of ['checked_on', 'summary', 'pacing', 'route_strategy', 'rain_plan', 'logistics', 'spa_intro', 'spa_options']) {
         if (de[k] !== undefined) d[k] = de[k];
       }
       if (de.flow_patch) {

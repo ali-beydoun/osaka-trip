@@ -107,6 +107,13 @@ test.describe('unlocked app', () => {
     await expect(page.locator('.strategy-card')).toContainText('Sample route strategy for day 2.');
     await expect(page.locator('summary', { hasText: 'Entrances, tickets & practical logistics (1)' })).toBeVisible();
     await expect(page.locator('summary', { hasText: 'Rain & low-energy alternatives' })).toBeVisible();
+    const spaSummary = page.locator('summary', { hasText: 'Optional massage, facial & spa (1)' });
+    await expect(spaSummary).toBeVisible();
+    await spaSummary.click();
+    await expect(page.getByText('Sample spa intro for day 2.')).toBeVisible();
+    await expect(page.getByText('Sample Day Spa')).toBeVisible();
+    await expect(page.getByText('Both can attend in private rooms.')).toBeVisible();
+    await expect(page.locator('.spa-item .chip.ev-certified')).toHaveCount(0);
     await expect(page.locator('.zone-highlight').first()).toContainText('Sample zone highlight ba.');
     for (const t of ['The day', 'Zones', 'End of the day', 'Good to know', 'Questions to settle', 'Sources']) await expect(page.getByRole('heading', { name: t, exact: true })).toBeVisible();
     await shot(page, testInfo, 'day');
