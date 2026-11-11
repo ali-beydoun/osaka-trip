@@ -11,6 +11,43 @@ const zone = (name, time, n) => ({
   shop: [item(`Sample Market ${n}`, { for: 'Both' })],
 });
 const L = ['a', 'b', 'c'];
+const day2Zones = [
+  {
+    ...zone('Sample Zone A1', '9:00 to 12:30', 'ba'),
+    eat: [
+      item('Sample Halal Diner ba', { for_b: 'Halal certified', price: '¥1,500', booking: 'Not needed' }),
+      item('Sample Fish Bar ba', { for_b: 'Fish, prawn or veg options', price: '¥2,000', booking: 'Book 2 days ahead' }),
+      item('Sample Grill ba', { for_b: 'Not for Traveller B', price: '¥3,000' }),
+      item('Sample Soba Cafe ba', { for_b: 'Fish, prawn or veg options', price: '¥1,600', booking: 'Walk-in' }),
+    ],
+  },
+  {
+    ...zone('Sample Zone B1', '13:30 to 17:00', 'bb'),
+    eat: [
+      item('Sample Halal Diner bb', { for_b: 'Halal certified', price: '¥1,500', booking: 'Not needed' }),
+      item('Sample Fish Bar bb', { for_b: 'Fish, prawn or veg options', price: '¥2,200' }),
+      item('Sample Grill bb', { for_b: 'Not for Traveller B', price: '¥3,000' }),
+      item('Sample Udon House bb', { for_b: 'Fish, prawn or veg options', price: '¥1,400' }),
+    ],
+  },
+  {
+    name: 'Sample Zone C1',
+    purpose: 'Sample evening dinner zone bc',
+    time: '17:30 to 21:00',
+    what_to_look_for: 'Sample lantern alley bc.',
+    tips: ['Sample evening zone tip bc.'],
+    getting_there: { how: 'Sample subway ride, about 15 min.', minutes: 15, fare: '¥240', arrive_at: 'Sample Evening Station', maps_query: 'Sample Evening Station Osaka', mode: 'transit', source: 'https://example.com/route' },
+    stops: [],
+    eat: [
+      item('Sample Tempura Counter', { jp: 'サンプル天ぷら', for_b: 'Fish, prawn or veg options', price: '¥14,000', cuisine: 'Tempura', mode: 'walking', booking: 'Book ahead online', why: 'Sample seasonal tempura counter.', entry_tip: 'Sample ground-floor noren entrance.' }),
+      item('Sample Italian Trattoria', { for_b: 'Fish, prawn or veg options', price: '¥5,500', cuisine: 'Italian', mode: 'walking', booking: 'Walk-in or book ahead', why: 'Sample wood-fired pizza and seafood pasta backup.' }),
+      item('Sample Splurge Kappo', { for_b: 'Fish, prawn or veg options', price: '¥22,000', cuisine: 'Kappo', mode: 'walking', booking: 'Reservation required 3 days ahead' }),
+      item('Sample Grill bc', { for_b: 'Not for Traveller B', price: '¥3,000' }),
+    ],
+    sweet: [item('Sample Pancake Cafe bc', { what: 'Souffle pancakes, sample.' })],
+    shop: [item('Sample Market bc', { for: 'Both' })],
+  },
+];
 const days = ['2030-05-07', '2030-05-08', '2030-05-09'].map((iso, i) => ({
   iso, date: ['Tue 7 May', 'Wed 8 May', 'Thu 9 May'][i], k: ['火', '水', '木'][i], n: String(7 + i), type: ['travel', 'shop', 'sight'][i], load: i + 1, wkd: false,
   title: `Sample day ${i + 1}`, place: `Sample area ${i + 1}`, walk: 'Low', summary: `Summary for sample day ${i + 1}.`,
@@ -37,8 +74,16 @@ const days = ['2030-05-07', '2030-05-08', '2030-05-09'].map((iso, i) => ({
       maps_query: 'Sample Day Spa Osaka',
     }],
   } : {}),
-  flow: [{ when: 'Morning', text: 'Sample morning', level: 1 }, { when: 'Evening', text: 'Sample evening', level: 0 }],
-  zones: [zone(`Sample Zone A${i}`, '9:00 to 13:00', `${L[i]}a`), zone(`Sample Zone B${i}`, '14:00 to 19:30', `${L[i]}b`)],
+  flow: i === 1
+    ? [
+        { when: 'Morning', text: 'Sample morning walk and coffee.', level: 1 },
+        { when: 'Late morning', text: 'Sample late morning gallery and lunch.', level: 2 },
+        { when: 'Afternoon', text: 'Sample afternoon covered market stroll.', level: 2 },
+        { when: 'Late afternoon', text: 'Sample hotel rest before dinner.', level: 0, zone: null },
+        { when: 'Evening', text: 'Sample evening walk and dinner.', level: 1 },
+      ]
+    : [{ when: 'Morning', text: 'Sample morning', level: 1 }, { when: 'Evening', text: 'Sample evening', level: 0 }],
+  zones: i === 1 ? day2Zones : [zone(`Sample Zone A${i}`, '9:00 to 13:00', `${L[i]}a`), zone(`Sample Zone B${i}`, '14:00 to 19:30', `${L[i]}b`)],
   home: { how: 'Sample way home, taxi 10 min.', maps_query: 'Sample Hotel', mode: 'driving', source: 'https://example.com/home' },
   pacing: 'Sample pacing note.', watch_outs: ['Sample watch-out'], decisions: ['Sample question?'], sources: ['https://example.com/a'],
 }));
@@ -47,6 +92,57 @@ export const fixture = {
   travellers: [{ id: 'b', role: 'B', name: 'Traveller B', dietary: 'Sample dietary note.' }, { id: 'a', role: 'A', name: 'Traveller A', dietary: '' }],
   hotel: { name: 'Sample Hotel', address: '1-1 Sample, Kita-ku, Osaka', name_jp: 'サンプルホテル', address_jp: '大阪市北区サンプル1-1', phone: '+81 6-0000-0000', maps_query: 'Sample Hotel Osaka', checkin: '15:00', checkout: '11:00', stations: 'Sample Station 5 min' },
   days,
+  bookings: [
+    {
+      id: 'bk-d2-dinner',
+      day: '2030-05-08',
+      status: 'confirmed',
+      kind: 'dining',
+      meal: 'dinner',
+      zone: 2,
+      time: '18:00',
+      venue: 'Sample Tempura Counter',
+      venue_jp: 'サンプル天ぷら',
+      area: 'Sample District',
+      guests: 2,
+      maps_query: 'Sample Tempura Counter Osaka',
+      mode: 'walking',
+      reference: 'SYNTH-8842',
+      booked_under: '{A}',
+      notes: 'Seasonal counter course.',
+      policy: 'Cancel at least 24 hours ahead. Counter seating starts on time.',
+      manage_url: 'https://example.com/manage-tempura',
+      source: 'https://example.com/tempura',
+    },
+    {
+      id: 'bk-d3-lunch',
+      day: '2030-05-09',
+      status: 'confirmed',
+      kind: 'dining',
+      meal: 'lunch',
+      zone: 0,
+      time: '12:30',
+      venue: 'Sample Kaiseki Pavilion',
+      venue_jp: 'サンプル懐石',
+      area: 'Sample Park Area',
+      guests: 2,
+      maps_query: 'Sample Kaiseki Pavilion Nara',
+      mode: 'walking',
+      reference: 'SYNTH-9920',
+      policy: 'Arrive 10 minutes before seating.',
+    },
+    {
+      id: 'bk-d1-unbooked',
+      day: '2030-05-07',
+      status: 'unbooked',
+      kind: 'dining',
+      meal: 'dinner',
+      zone: 1,
+      time: '19:00',
+      venue: 'Sample Fish Bar ab',
+      guests: 2,
+    },
+  ],
   bakeries: [item('Sample Bakery', { jp: 'サンプル', area: 'Umeda', why: 'Sample reason', signature: 'Croissant', for_b: 'Sample note', opens: '8:00', closed: 'Mondays', walk_min: 5, tags: ['coffee'] })],
   halal: {
     groups: [{ id: 'umeda', label: 'Umeda' }, { id: 'nara', label: 'Nara' }],
@@ -64,8 +160,10 @@ export const fixture = {
   },
   to_book: { note: 'Only the flights and hotels are booked. Nothing on this list is booked yet.', items: [
     { id: 'transfer-arrival', title: 'Sample airport transfer in', day: '2030-05-07', kind: 'transfer', need: 'needs', detail: 'Sample transfer note.' },
-    { id: 'eat-1', title: 'Sample Fish Bar ba', day: '2030-05-08', kind: 'restaurant', need: 'needs', detail: 'Book 2 days ahead (sample).' },
-    { id: 'eat-2', title: 'Sample Grill ba', day: '2030-05-08', kind: 'restaurant', need: 'optional', detail: 'Online booking (sample).' },
+    { id: 'eat-1', title: 'Sample Fish Bar ba', day: '2030-05-08', zone: 0, meal: 'lunch', kind: 'restaurant', need: 'needs', detail: 'Book 2 days ahead (sample).' },
+    { id: 'eat-d2-tempura', title: 'Sample Tempura Counter', day: '2030-05-08', zone: 2, meal: 'dinner', kind: 'restaurant', need: 'needs', detail: 'Book ahead online (sample).' },
+    { id: 'eat-d2-splurge', title: 'Sample Splurge Kappo', day: '2030-05-08', kind: 'restaurant', need: 'needs', detail: 'Reservation required 3 days ahead (sample).' },
+    { id: 'eat-2', title: 'Sample Grill ba', day: '2030-05-08', zone: 0, kind: 'restaurant', need: 'optional', detail: 'Online booking (sample).' },
   ] },
   doc: { intro: 'Sample intro for the trip.', sections: [
     { id: 'next-up', level: 2, title: 'Next up', md: '- [ ] Sample task one\n- [x] Sample task done' },

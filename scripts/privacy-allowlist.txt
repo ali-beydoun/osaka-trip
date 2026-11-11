@@ -23,3 +23,6 @@ restaurant
 transfer-arrival
 transfer-departure
 Only the flights and hotels are booked. Nothing on this list is booked yet (owner, 8 Nov 2026).
+Flights, hotels and confirmed reservations are already booked. Nothing on the list below is booked yet.
+Late morning
+Book ahead

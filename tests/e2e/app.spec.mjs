@@ -79,31 +79,44 @@ test.describe('lock screen', () => {
 test.describe('unlocked app', () => {
   test.beforeEach(async ({ page }) => { await unlock(page); });
 
-  test('today during the trip shows now, quick actions and the rest of today', async ({ page }, testInfo) => {
+  test('today during the trip shows now, confirmed reservation, quick actions and the rest of today', async ({ page }, testInfo) => {
     await expect(page.getByText('Viewing as 2030-05-08 10:30 Tokyo time')).toBeVisible();
     await expect(page.locator('.now-card')).toContainText('Sample Zone A1');
     await expect(page.locator('.now-card .chip.now')).toHaveText('Now');
+    const confirmedCard = page.locator('.booking-card').first();
+    await expect(confirmedCard.locator('.chip.ev-certified')).toHaveText('Confirmed');
+    await expect(confirmedCard).toContainText('18:00');
+    await expect(confirmedCard).toContainText('Sample Tempura Counter');
+    await expect(confirmedCard).toContainText('2 guests');
     for (const name of ['Back to the hotel', 'Food nearby', 'Prayer rooms', 'Taxi card']) await expect(page.locator('.quick')).toContainText(name);
     await shot(page, testInfo, 'today');
   });
 
-  test('today before the trip shows the countdown in Tokyo days', async ({ page }) => {
+  test('today before the trip shows the countdown and future confirmed bookings', async ({ page }) => {
     await page.goto(url('today', 'asof=2030-05-03'));
     await expect(page.locator('.hero-number')).toHaveText('4');
+    await expect(page.locator('.booking-card')).toHaveCount(2);
+    await expect(page.locator('.booking-card').nth(0)).toContainText('Sample Tempura Counter');
+    await expect(page.locator('.booking-card').nth(1)).toContainText('Sample Kaiseki Pavilion');
     await expect(page.getByText('Sample task one')).toBeVisible();
   });
 
-  test('days list, day detail, previous and next', async ({ page }, testInfo) => {
+  test('days list, calm day detail hierarchy, previous and next', async ({ page }, testInfo) => {
     await page.goto(url('days'));
     await expect(page.locator('.rhythm-strip a')).toHaveCount(3);
     if (page.viewportSize().width >= 600) await expect(page.locator('.day-title')).toHaveText('Sample day 2'); // L4 split shows today
     await page.goto(url('days/2030-05-08'));
     await expect(page.locator('.day-title')).toHaveText('Sample day 2');
     if (page.viewportSize().width < 600) await expect(page.locator('.day-strip .day-pill')).toHaveCount(3);
+    else await expect(page.locator('.day-strip')).toBeHidden();
     await expect(page.locator('.day-area-bar')).toContainText('Halal: Umeda');
     await expect(page.locator('.day-area-bar')).toContainText('Halal: Nara');
     await expect(page.locator('.day-area-bar a', { hasText: 'Prayer: Umeda' })).toContainText('1');
     await expect(page.locator('.day-area-bar a', { hasText: 'Prayer: Nara' })).toContainText('1');
+    const routeSummary = page.locator('summary', { hasText: 'Route & pacing' });
+    await expect(routeSummary).toBeVisible();
+    await routeSummary.click();
+    await expect(page.locator('.strategy-card')).toBeVisible();
     await expect(page.locator('.strategy-card')).toContainText('Sample route strategy for day 2.');
     await expect(page.locator('summary', { hasText: 'Entrances, tickets & practical logistics (1)' })).toBeVisible();
     await expect(page.locator('summary', { hasText: 'Rain & low-energy alternatives' })).toBeVisible();
@@ -116,12 +129,84 @@ test.describe('unlocked app', () => {
     await expect(page.getByRole('link', { name: 'Source & booking (example.com)' })).toHaveCount(1);
     await expect(page.locator('.spa-item .chip.ev-certified')).toHaveCount(0);
     await expect(page.locator('.zone-highlight').first()).toContainText('Sample zone highlight ba.');
-    for (const t of ['The day', 'Zones', 'End of the day', 'Good to know', 'Questions to settle', 'Sources']) await expect(page.getByRole('heading', { name: t, exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Zones', exact: true })).toHaveCount(0);
+    for (const t of ['Confirmed', 'The day', 'End of the day', 'Practical notes & options', 'Good to know', 'Questions to settle', 'Sources']) {
+      await expect(page.getByRole('heading', { name: t, exact: true })).toBeVisible();
+    }
     await shot(page, testInfo, 'day');
     await page.getByRole('button', { name: /^Next day/ }).click();
     await expect(page.locator('.day-title')).toHaveText('Sample day 3');
     await page.goBack();
     await expect(page.locator('.day-title')).toHaveText('Sample day 2');
+  });
+
+  test('confirmed bookings, collapsed alternatives, accessible backup, no-booking day and keyboard zone jump', async ({ page }, testInfo) => {
+    await page.goto(url('days/2030-05-08'));
+    const card = page.locator('.booking-card').first();
+    await expect(card).toBeVisible();
+    await expect(card.locator('.chip.ev-certified')).toHaveText('Confirmed');
+    await expect(card.locator('.booking-when')).toHaveText('18:00 \u00b7 Dinner');
+    await expect(card.locator('.booking-venue')).toContainText('Sample Tempura Counter');
+    await expect(card.locator('.booking-meta')).toHaveText('2 guests \u00b7 Sample District');
+    await expect(card.getByRole('link', { name: 'Walk to Sample Tempura Counter' }))
+      .toHaveAttribute('href', /google\.com\/maps\/dir\/.*destination=Sample%20Tempura%20Counter%20Osaka.*travelmode=walking/);
+
+    // Reference and policy are collapsed until expanded
+    const refDisc = card.locator('details.booking-disclosure');
+    await expect(refDisc).not.toHaveAttribute('open', '');
+    await expect(card.getByText('SYNTH-8842')).toBeHidden();
+    const refSummary = refDisc.locator('summary');
+    await refSummary.focus();
+    await page.keyboard.press('Enter');
+    await expect(refDisc).toHaveAttribute('open', '');
+    await expect(card.getByText('SYNTH-8842')).toBeVisible();
+    await expect(card.getByText('Traveller A')).toBeVisible();
+    await expect(card.getByText('Cancel at least 24 hours ahead. Counter seating starts on time.')).toBeVisible();
+
+    // Unified 5-row flow links via keyboard to Zone 3 without clobbering the private hash secret
+    await expect(page.locator('.itinerary-overview .flow-item')).toHaveCount(5);
+    const jumpBtn = page.locator('.itinerary-overview').getByRole('button', { name: 'Jump to Zone 3, Sample Zone C1' });
+    await jumpBtn.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#zone-2')).toBeFocused();
+    expect(page.url()).toContain('k=');
+
+    // Dinner zone pins confirmed booking visibly while keeping optional dinner alternatives collapsed
+    const zone3 = page.locator('section.zone').nth(2);
+    await expect(zone3.locator('.zone-confirmed')).toContainText('Sample Tempura Counter');
+    await expect(zone3.getByRole('link', { name: 'Directions to Sample Tempura Counter' }))
+      .toHaveAttribute('href', /destination=Sample%20Tempura%20Counter%20Osaka/);
+    const altDisc = zone3.locator('details.disclosure').filter({ hasText: 'Optional dinner alternatives (3)' });
+    await expect(altDisc).not.toHaveAttribute('open', '');
+    await altDisc.locator('summary').click();
+    await expect(altDisc).toHaveAttribute('open', '');
+    await expect(altDisc.locator('.row-title', { hasText: 'Sample Tempura Counter' })).toHaveCount(0);
+    await expect(altDisc.getByText('Sample Splurge Kappo', { exact: true })).toBeVisible();
+    const backupRow = altDisc.locator('.row-link', { hasText: 'Sample Italian Trattoria' });
+    await expect(backupRow).toBeVisible();
+    await shot(page, testInfo, 'day-booking-expanded');
+
+    await backupRow.click();
+    const detail = page.locator('.sheet, .inspector').filter({ hasText: 'Sample Italian Trattoria' });
+    await expect(detail.getByRole('heading', { name: 'Sample Italian Trattoria' })).toBeVisible();
+    await expect(detail).toContainText('Sample wood-fired pizza and seafood pasta backup.');
+    await expect(detail.getByRole('link', { name: 'Walk to Sample Italian Trattoria' })).toBeVisible();
+    if (await page.locator('.sheet').count()) await page.keyboard.press('Escape');
+
+    // Day 1 has no confirmed bookings (unbooked entry is ignored) and keeps genuine pending transfer alert
+    await page.goto(url('days/2030-05-07'));
+    await expect(page.locator('.booking-card')).toHaveCount(0);
+    await expect(page.locator('.callout.warn')).toContainText('Not booked yet: Sample airport transfer in');
+    await expect(page.locator('section.zone details.disclosure[open]')).toHaveCount(0);
+    await shot(page, testInfo, 'day-no-booking');
+
+    // Second future confirmed booking on Day 3 and in Info > Bookings
+    await page.goto(url('days/2030-05-09'));
+    await expect(page.locator('.booking-card')).toHaveCount(1);
+    await expect(page.locator('.booking-card')).toContainText('Sample Kaiseki Pavilion');
+    await expect(page.locator('.booking-card')).toContainText('12:30 \u00b7 Lunch');
+    await page.goto(url('info/bookings'));
+    await expect(page.locator('.booking-card')).toHaveCount(2);
   });
 
   test('place detail opens from a day and Back dismisses it first', async ({ page }, testInfo) => {
@@ -211,7 +296,7 @@ test.describe('unlocked app', () => {
   });
 
   test('no horizontal page scroll on any destination', async ({ page }) => {
-    for (const v of ['today', 'days', 'days/2030-05-08', 'food/halal', 'food/bakeries', 'places', 'info', 'info/getting-around', 'info/app']) {
+    for (const v of ['today', 'days', 'days/2030-05-07', 'days/2030-05-08', 'food/halal', 'food/bakeries', 'places', 'info', 'info/bookings', 'info/to-book', 'info/getting-around', 'info/app']) {
       await page.goto(url(v));
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow, v).toBeLessThanOrEqual(1);
@@ -230,11 +315,23 @@ test.describe('unlocked app', () => {
   });
 
   test('every interactive target is at least 44px (sampled)', async ({ page }) => {
-    for (const v of ['today', 'days/2030-05-08', 'food/halal', 'places']) {
+    for (const [v, title] of [
+      ['today', 'Today'],
+      ['days/2030-05-08', 'Sample day 2'],
+      ['food/halal', 'Food'],
+      ['places', 'Places'],
+      ['info/bookings', 'Bookings'],
+      ['info/to-book', 'To book'],
+    ]) {
       await page.goto(url(v));
+      await expect(page.locator('#view-title')).toHaveText(title);
       const spaDisclosure = page.locator('summary', { hasText: 'Optional massage, facial & spa' });
       if (await spaDisclosure.count()) await spaDisclosure.click();
-      const small = await page.evaluate(() => [...document.querySelectorAll('.tab, .top-tab, .icon-btn, .btn, .row-link, .filter-chip, .segmented button, .quick-btn, .rhythm-day a, .day-pill, .area-link, .disclosure > summary, .spa-item .text-btn')]
+      const refDisclosure = page.locator('summary', { hasText: 'Reference & policy' }).first();
+      if (await refDisclosure.count()) await refDisclosure.click();
+      const altDisclosure = page.locator('summary', { hasText: 'Optional dinner alternatives' }).first();
+      if (await altDisclosure.count()) await altDisclosure.click();
+      const small = await page.evaluate(() => [...document.querySelectorAll('.tab, .top-tab, .icon-btn, .btn, .row-link, .row-go, .filter-chip, .segmented button, .quick-btn, .rhythm-day a, .day-pill, .area-link, .disclosure > summary, .spa-item .text-btn, .flow-jump, .booking-links .text-btn, .booking-ext .text-btn')]
         .filter((el) => el.offsetParent !== null)
         .map((el) => { const r = el.getBoundingClientRect(); return { c: el.className, w: Math.round(r.width), h: Math.round(r.height) }; })
         .filter((r) => r.w < 44 || r.h < 44)
@@ -407,7 +504,7 @@ test.describe('text size (Y2, emulated)', () => {
   for (const px of [20, 28]) {
     test(`root text at ${px}px: no horizontal scroll, layouts stack`, async ({ page }) => {
       await unlock(page);
-      for (const v of ['today', 'days/2030-05-08', 'food/halal', 'places', 'info/getting-around', 'info/app']) {
+      for (const v of ['today', 'days/2030-05-08', 'food/halal', 'places', 'info/bookings', 'info/to-book', 'info/getting-around', 'info/app']) {
         await page.goto(url(v));
         await page.evaluate((size) => { document.documentElement.style.setProperty('font-size', `${size}px`, 'important'); }, px);
         await page.waitForTimeout(150); // ResizeObserver probe, no resize event (Dynamic Type)
@@ -434,11 +531,19 @@ test('no uncaught errors through unlock and rapid navigation', async ({ page }) 
   expect(errors).toEqual([]);
 });
 
-test('to book: not-booked notes, list and device-only ticks', async ({ page }) => {
+test('to book: scoped suppression, updated confirmation caption and device-only ticks', async ({ page }, testInfo) => {
   await unlock(page);
-  await expect(page.locator('.callout.warn')).toContainText('Not booked yet: Sample Fish Bar ba');
+  const warn = page.locator('.callout.warn').first();
+  await expect(warn).toContainText('Not booked yet: Sample Fish Bar ba');
+  await expect(warn).not.toContainText('Sample Splurge Kappo');
+  await expect(warn).not.toContainText('Sample Tempura Counter');
   await page.goto(url('info/to-book'));
-  await expect(page.getByText('Only the flights and hotels are booked.')).toBeVisible();
+  await expect(page.getByText('Flights, hotels and confirmed reservations are already booked. Nothing on the list below is booked yet.')).toBeVisible();
+  await expect(page.getByText('Only the flights and hotels are booked.')).toHaveCount(0);
+  await expect(page.getByText('2 confirmed in trip plan')).toBeVisible();
+  await expect(page.getByText('Sample Splurge Kappo')).toHaveCount(0);
+  await expect(page.getByText('Sample Tempura Counter')).toHaveCount(0);
+  await shot(page, testInfo, 'to-book');
   const tick = page.getByRole('checkbox', { name: /Sample Fish Bar ba/ });
   await tick.click();
   await expect(page.getByRole('checkbox', { name: /Sample Fish Bar ba/ })).toBeChecked();

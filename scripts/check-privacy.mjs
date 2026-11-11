@@ -12,11 +12,16 @@ function collect(v) {
   else if (Array.isArray(v)) v.forEach(collect);
   else if (v && typeof v === 'object') Object.values(v).forEach(collect);
 }
-for (const f of [TRIP_FILE, path.join(PRIVATE_DIR, 'planner-data.json')]) {
+for (const f of [TRIP_FILE, path.join(PRIVATE_DIR, 'planner-data.json'), path.join(PRIVATE_DIR, 'bookings.local.json')]) {
   if (!fs.existsSync(f)) continue;
-  const { meta, ...rest } = JSON.parse(fs.readFileSync(f, 'utf8')); // meta holds only public labels
+  const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const rest = Array.isArray(parsed) ? { bookings: parsed } : (() => { const { meta, ...r } = parsed; return r; })(); // meta holds only public labels
   collect(rest);
   for (const doc of rest.documents || []) if (doc.url) needles.add(doc.url);
+  for (const b of rest.bookings || []) {
+    if (b && b.reference && String(b.reference).trim().length >= 4) needles.add(String(b.reference).trim());
+    if (b && b.manage_url) needles.add(String(b.manage_url).trim());
+  }
 }
 if (fs.existsSync(KEYS_FILE)) {
   const k = JSON.parse(fs.readFileSync(KEYS_FILE, 'utf8'));

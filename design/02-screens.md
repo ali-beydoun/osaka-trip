@@ -20,31 +20,39 @@ See `04-unlock-pwa-offline.md` section 1. Full screen on every tier, pane at mos
 
 ## Today
 
-Order on trip: date line (date, weekday kanji, Day n of N), day title and place as the first heading block; the Now card; quick actions; To decide callout if the day has an open decision; Rest of today; Watch out (first three plus more); Tomorrow.
+Order on trip: date line (date, Day n of N), day title and place as the first heading block; the Now card; Confirmed today cards when the day has structured `status: "confirmed"` reservations; quick actions; Not booked yet warning for genuine remaining unbooked items; To decide callout if the day has an unresolved open decision; Rest of today; Watch out (first three plus more); Tomorrow.
 
 - **Now card.** Caption label "Now" with the zone time range, zone name at Title 3, purpose at Subheadline, a Next box when another zone follows (label "Next" with its time, zone name, the getting-there sentence and one primary directions button for its mode). When no zone is current the card's label is "Today's plan" with the day title and summary; the "Then" box shows End of the day when the last zone has passed. A text button "Open the full day" closes the card.
+- **Confirmed reservation card.** Shown whenever structured `bookings` includes `status: "confirmed"` for that day (never inferred from prose). Plain "Confirmed" chip with check-circle glyph, time and meal label, venue name (plus Japanese name in `lang="ja"`), guest count and area, context link to the itinerary zone or venue notes, directions buttons to that exact venue, and a collapsed "Reference & policy" disclosure holding confirmation reference, booked-under traveller, details, cancellation policy and booking/venue links.
 - **Quick actions.** Four equal tiles: Back to the hotel (directions, taxi mode after 20:00 Tokyo, transit otherwise), Food near here (Food tab, Halal, today's area), Prayer rooms (same, scrolled to Prayer rooms), Taxi card. Icon over a two-line Caption 1 label. On iPad the tiles keep four columns; at accessibility text sizes they become two columns.
-- **Rest of today.** One row per zone: numbered disc in the day's type colour, zone name, time and purpose, chevron; opens the day detail scrolled to that zone.
-- **Pre-trip.** A countdown card (large tinted number and "days to go", the start date and a Japan time note), Next up checklist (round check controls, local ticks, footer "Ticks stay on this device only."), First day row, Essentials rows (Bookings, Getting around, Tax-free shopping).
+- **Rest of today.** One row per zone: time range, zone name, purpose, Confirmed chip when the zone holds a confirmed reservation, Now chip when active, chevron; opens the day detail.
+- **Pre-trip.** A countdown card (large tinted number and "days to go", the start date and a Japan time note), Confirmed reservations across the trip when present, To book pending items (excluding slots already covered by a confirmed meal or dining zone), Next up checklist (round check controls, local ticks), First day row, Before you go rows (Bookings, Getting around, Tax-free shopping).
 - **Post-trip.** A single centred card: sun glyph, "Trip complete", "The plan stays here for next time.", a secondary button to Days.
 
-Regular tiers: identical content at the readable measure. The Now card and quick actions do not spread into columns; the day is one column of priorities. Extra wide may place Tomorrow and Watch out in a trailing rail.
+Regular tiers: identical content at the readable measure. The Now card and quick actions do not spread into columns; the day is one column of priorities.
 
 ## Days
 
-Root (compact): Trip at a glance card (title, light/moderate/full tally, one column per day with the load bar in the type colour, weekday kanji, day number in a ring for today and a filled disc when selected, weekend wash, open-decision dot, legend) then the All days grouped list (type glyph in type colour, title with a Today chip when applicable, date and place, chips for type, load and To decide, chevron). Tapping a day pushes the day detail.
+Root (compact): Trip at a glance card (title, one column per day with the load bar in the type colour, weekday kanji, day number in a ring for today and a filled disc when selected, weekend wash, open-decision dot for unresolved decisions, legend) then the Days grouped list (day number badge, date, title, place, chips for type, load, Confirmed when applicable and To decide when unresolved, chevron). Tapping a day pushes the day detail.
 
-Root (regular narrow and wide): a two-column split. Left column 320 to 340 px holds the chart and the list; the right column holds the selected day's detail with the chart column and the sidebar day rows both marking the selection. Default selection is today during the trip, otherwise the first day. Extra wide adds the day's rail (see below).
+Root (regular narrow and wide): a two-column split. Left column 320 to 340 px holds the chart and the list; the right column holds the selected day's detail with the chart column and the sidebar day rows both marking the selection. Default selection is today during the trip, otherwise the first day. Extra wide adds the day's secondary rail (see below).
 
 ### Day detail
 
-Header: date line (Today prefix when applicable, date, kanji, Weekday or Weekend), title at Title 2 (the `h1`, focus target on push), place line, previous and next day round buttons at the trailing edge (44 px, disabled state at the ends, arrow keys also work). Chips: type, load, walking. Summary at Body. To decide callout (tinted card with a question glyph) when `open` exists.
+Compact day jump strip appears only below 600 px where neither the list column nor the sidebar is visible. Header: day count eyebrow (with Weekend when applicable), title at Title 2 (the `h1`, focus target on push), date and place line, previous and next day buttons in the navigation bar (44 px, disabled at ends, left and right arrow keys also work on the header). Chips: Today when applicable, type, load, walking. Summary at Body.
 
-Then, in order: The day (flow items in a card: level glyph plus when label in a 96 px column, text beside; stacks at accessibility sizes; legend On the go, Easy, Downtime), Zones (see below), End of the day (card with the home sentence and directions buttons), Good to know (grouped list: pacing note with the walking glyph, each watch-out with the warning glyph in the yellow text colour), Questions to settle (grouped list with question glyphs), Sources (disclosure with external link rows).
+Near-top status and alerts, in order:
+1. **Confirmed** section when the day has one or more structured `status: "confirmed"` bookings: each booking card shows the plain "Confirmed" chip, time and meal, venue, guest count, jump button to its itinerary zone, venue notes sheet trigger when matched, exact venue directions buttons, and collapsed "Reference & policy" disclosure.
+2. **Not booked yet** callout only for genuinely unbooked `need: "needs"` items on that day (dining alternatives in a meal or zone already covered by a confirmed reservation are suppressed).
+3. **To decide** callout when `open` remains unresolved.
 
-Zone card: numbered disc in the type colour, zone name at Title 3, time range, purpose; Getting there box (label, the how sentence, meta line with minutes, fare and arrive-at, primary directions button in the zone's mode plus Taxi and Map); stops as rows (name, what, meta of zone and cost, hours, pacing note, Walk, Taxi, Map, Source); Eat, Something sweet and Shop as disclosures with counts (Eat open by default on regular tiers, all collapsed on compact). Eat rows carry the dietary chip at the trailing edge of the name line; Shop rows carry a traveller chip when `for` is set.
+Then **The day** as a single unified chronological itinerary:
+1. **Itinerary overview (`ol.flow`):** compact chronological beats (when label and pace level in the leading column; description, inline Confirmed chip on the matching beat, and a 44 px jump button to the numbered Zone stage in the body column).
+2. **Numbered Zone stages (`#zone-0`, `#zone-1`, ...):** numbered disc, zone name at Title 3, linked beat labels plus time range, purpose; pinned `.zone-confirmed` row(s) when the zone holds a confirmed reservation (with Confirmed chip, time, venue, guests and direct venue directions); collapsed "Getting there" disclosure (previewing duration, fare and station in the summary, expanding to route prose and directions buttons); visible `See` (`stops`) rows; concise `what_to_look_for` callout and collapsed `Zone tips & entry details`; and **always-collapsed** optional disclosures (`Optional dinner/lunch/breakfast alternatives (N)` when a dining booking is confirmed in that zone, excluding duplicate of the confirmed venue while keeping backup options accessible, else `Eat (N)`; plus `Something sweet` and `Shop`).
 
-Compact height and extra wide: the day grid places Zones in the main column and The day plus Good to know in a trailing rail (320 px) that stays in view while zones scroll.
+Followed immediately in the primary column by **End of the day** (card with the home sentence and hotel directions buttons).
+
+Secondary reference sections follow calmly via progressive disclosure (stacked below on compact and regular narrow/wide; placed in the trailing rail `.day-secondary` on extra wide when no place detail pane is open): **Practical notes & options** (Halal and Prayer area links with counts, plus disclosures for Optional massage, facial & spa, Route & pacing, Entrances, tickets & practical logistics, and Rain & low-energy alternatives), **Good to know** (pacing note and watch-outs), **Questions to settle**, and **Sources** (checked-on caption and collapsed source links).
 
 ## Food
 

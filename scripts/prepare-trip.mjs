@@ -5,6 +5,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PRIVATE_DIR, TRIP_FILE } from './paths.mjs';
+import {
+  BOOKING_STATUS, CONFIRMED_TO_BOOK_NOTE, confirmedBookings, explicitBookingZoneIndex, isSupersededByConfirmedBooking, normKey,
+} from '../docs/js/model.js';
 
 const read = (f) => fs.readFileSync(path.join(PRIVATE_DIR, f), 'utf8');
 const planner = JSON.parse(read('planner-data.json'));
@@ -116,8 +119,31 @@ if (fs.existsSync(path.join(PRIVATE_DIR, 'day-enrichments.local.json'))) {
     for (const [iso, de] of Object.entries(enrich.days)) {
       const d = trip.days.find((x) => x.iso === iso);
       if (!d) throw new Error(`Enrichment day not found: ${iso}`);
-      for (const k of ['checked_on', 'summary', 'pacing', 'route_strategy', 'rain_plan', 'logistics', 'spa_intro', 'spa_options']) {
+      for (const k of ['checked_on', 'summary', 'pacing', 'route_strategy', 'rain_plan', 'logistics', 'spa_intro', 'spa_options', 'open', 'open_meal', 'decisions', 'bookings']) {
         if (de[k] !== undefined) d[k] = de[k];
+      }
+      if (de.decisions_replace) {
+        for (const rep of de.decisions_replace) {
+          const { match, text, meal, zone } = rep;
+          const hits = (d.decisions || [])
+            .map((w, idx) => ((typeof w === 'string' ? w : (w?.text || '')).includes(match) ? idx : -1))
+            .filter((idx) => idx >= 0);
+          if (hits.length !== 1) throw new Error(`Decision replace "${match}" on ${iso} expected 1 match, found ${hits.length}.`);
+          const prev = d.decisions[hits[0]];
+          const nextText = text !== undefined ? text : (typeof prev === 'string' ? prev : prev.text);
+          d.decisions[hits[0]] = (meal !== undefined || zone !== undefined || (nextText && typeof nextText === 'object'))
+            ? (typeof nextText === 'object' ? nextText : { text: nextText, ...(meal !== undefined ? { meal } : {}), ...(zone !== undefined ? { zone } : {}) })
+            : nextText;
+        }
+      }
+      if (de.decisions_remove) {
+        for (const match of de.decisions_remove) {
+          const hits = (d.decisions || [])
+            .map((w, idx) => ((typeof w === 'string' ? w : (w?.text || '')).includes(match) ? idx : -1))
+            .filter((idx) => idx >= 0);
+          if (hits.length !== 1) throw new Error(`Decision remove "${match}" on ${iso} expected 1 match, found ${hits.length}.`);
+          d.decisions.splice(hits[0], 1);
+        }
       }
       if (de.flow_patch) {
         for (const [fi, fp] of Object.entries(de.flow_patch)) {
@@ -167,21 +193,88 @@ if (fs.existsSync(path.join(PRIVATE_DIR, 'day-enrichments.local.json'))) {
   }
 }
 
+// Structured bookings (bookings.local.json, plus optional bookings arrays in owner-updates / day-enrichments).
+// Confirmation is never inferred from prose; every booking must declare an explicit BOOKING_STATUS value.
+const rawBookings = [];
+if (Array.isArray(updates.bookings)) rawBookings.push(...updates.bookings);
+if (fs.existsSync(path.join(PRIVATE_DIR, 'day-enrichments.local.json'))) {
+  const enrich = JSON.parse(read('day-enrichments.local.json'));
+  if (Array.isArray(enrich.bookings)) rawBookings.push(...enrich.bookings);
+}
+if (fs.existsSync(path.join(PRIVATE_DIR, 'bookings.local.json'))) {
+  const bFile = JSON.parse(read('bookings.local.json'));
+  const list = Array.isArray(bFile) ? bFile : bFile.bookings;
+  if (!Array.isArray(list)) throw new Error('bookings.local.json must be an array or { "bookings": [...] }.');
+  rawBookings.push(...list);
+}
+for (const d of trip.days) {
+  if (Array.isArray(d.bookings)) {
+    for (const b of d.bookings) rawBookings.push(b.day ? b : { ...b, day: d.iso });
+    delete d.bookings;
+  }
+}
+if (rawBookings.length) {
+  const seenIds = new Set();
+  trip.bookings = rawBookings.map((b) => {
+    if (!b || typeof b !== 'object' || Array.isArray(b)) throw new Error('Booking entry must be an object.');
+    if (typeof b.id !== 'string' || !b.id.trim()) throw new Error('Booking entry requires a non-empty string id.');
+    if (seenIds.has(b.id)) throw new Error(`Duplicate booking id: ${b.id}`);
+    seenIds.add(b.id);
+    const day = trip.days.find((d) => d.iso === b.day);
+    if (!day) throw new Error(`Booking "${b.id}" references unknown day: ${b.day}`);
+    if (!BOOKING_STATUS.includes(b.status)) throw new Error(`Booking "${b.id}" has invalid status "${b.status}".`);
+    if (typeof b.venue !== 'string' || !b.venue.trim()) throw new Error(`Booking "${b.id}" requires venue.`);
+    if (b.status === 'confirmed') {
+      if (typeof b.time !== 'string' || !b.time.trim()) throw new Error(`Confirmed booking "${b.id}" requires time.`);
+      if (b.guests === undefined || b.guests === null || String(b.guests).trim() === '') throw new Error(`Confirmed booking "${b.id}" requires guests.`);
+      if (typeof b.maps_query !== 'string' || !b.maps_query.trim()) throw new Error(`Confirmed booking "${b.id}" requires maps_query.`);
+    }
+    if (b.zone !== undefined && b.zone !== null && explicitBookingZoneIndex(day, b) < 0) {
+      throw new Error(`Booking "${b.id}" zone "${b.zone}" did not match any zone on ${b.day}.`);
+    }
+    if (b.place_match) {
+      const target = normKey(b.place_match);
+      const found = day.zones.some((z) => ['stops', 'eat', 'sweet', 'shop'].some((k) => (z[k] || []).some((it) => normKey(it.name) === target)));
+      if (!found) throw new Error(`Booking "${b.id}" place_match "${b.place_match}" did not match any item on ${b.day}.`);
+    }
+    return b;
+  });
+}
+
 // To book: the owner's transfer items, then restaurants by what their own booking note says.
+// Suppresses items in slots already occupied by an explicit confirmed booking (venue, meal, or dining zone).
 // needs: the note asks for a booking or a lead time. optional: bookable, but walk-in is not ruled out.
 const NEEDS = /\b(required|book (now|ahead|by)|\d+ days? ahead|by (mon|tue|wed|thu|fri|sat|sun)\b)/i;
 const CAN = /\b(book|bookings? taken|tablecheck|tabelog|online|reserv|tel |phone|call)\b/i;
-const toBook = (updates.to_book || []).map((x) => ({ ...x, need: 'needs' }));
+const toBook = (updates.to_book || [])
+  .map((x) => ({ ...x, need: x.need || 'needs' }))
+  .filter((x) => !isSupersededByConfirmedBooking(trip, x));
 const seen = new Set();
-trip.days.forEach((d) => d.zones.forEach((z) => (z.eat || []).forEach((it) => {
+trip.days.forEach((d) => d.zones.forEach((z, zi) => (z.eat || []).forEach((it) => {
   const b = it.booking || '';
   const need = NEEDS.test(b) ? 'needs' : (CAN.test(b) && !/^walk[- ]?in\b|^no\b|^none\b/i.test(b.trim()) ? 'optional' : null);
   const key = `${d.iso}|${it.name}`;
   if (!need || seen.has(key)) return;
+  const candidate = {
+    id: `eat-${d.iso}-${it.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    title: it.name,
+    day: d.iso,
+    zone: zi,
+    ...(it.meal ? { meal: it.meal } : {}),
+    kind: 'restaurant',
+    need,
+    detail: b,
+    maps_query: it.maps_query,
+  };
+  if (isSupersededByConfirmedBooking(trip, candidate)) return;
   seen.add(key);
-  toBook.push({ id: `eat-${d.iso}-${it.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, title: it.name, day: d.iso, kind: 'restaurant', need, detail: b, maps_query: it.maps_query });
+  toBook.push(candidate);
 })));
-trip.to_book = { note: 'Only the flights and hotels are booked. Nothing on this list is booked yet (owner, 8 Nov 2026).', items: toBook };
+const hasConfirmed = confirmedBookings(trip).length > 0;
+trip.to_book = {
+  note: hasConfirmed ? CONFIRMED_TO_BOOK_NOTE : 'Only the flights and hotels are booked. Nothing on this list is booked yet (owner, 8 Nov 2026).',
+  items: toBook,
+};
 
 // Document pointers only. Originals remain in iCloud Drive.
 if (fs.existsSync(path.join(PRIVATE_DIR, 'documents.local.json'))) {
