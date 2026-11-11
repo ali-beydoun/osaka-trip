@@ -16,6 +16,7 @@ for (const f of [TRIP_FILE, path.join(PRIVATE_DIR, 'planner-data.json')]) {
   if (!fs.existsSync(f)) continue;
   const { meta, ...rest } = JSON.parse(fs.readFileSync(f, 'utf8')); // meta holds only public labels
   collect(rest);
+  for (const doc of rest.documents || []) if (doc.url) needles.add(doc.url);
 }
 if (fs.existsSync(KEYS_FILE)) {
   const k = JSON.parse(fs.readFileSync(KEYS_FILE, 'utf8'));

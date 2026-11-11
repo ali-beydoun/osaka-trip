@@ -592,6 +592,7 @@ function viewToday() {
         h('p', { class: 'hero-number' }, String(ph.daysToGo)),
         h('p', { class: 'hero-label' }, ph.daysToGo === 1 ? 'day to go' : 'days to go'),
         h('p', { class: 'meta' }, `${t.days[0].date} to ${t.days[t.days.length - 1].date}, Tokyo time`)),
+      documentShortcut(),
       section('To book', grouped(toBook().filter((x) => x.need === 'needs').slice(0, 6).map(bookRow), 'book-list'), link('info/to-book', { class: 'text-btn' }, 'All bookings to make')),
       docSection('next-up', 'Next up'),
       section('First day', dayCard(day)),
@@ -610,6 +611,7 @@ function viewToday() {
         h('p', { class: 'day-place' }, day.place)),
       focus !== null && focus !== undefined ? zoneNowCard(day, day.zones[focus], nn.now === focus ? 'Now' : 'Next')
         : h('section', { class: 'now-card', 'aria-label': 'Today’s plan' }, h('p', { class: 'eyebrow' }, nn.done ? 'Plan done' : 'Today’s plan'), h('p', { class: 'body' }, nn.done ? 'That’s today’s plan done. Time to head back.' : day.summary)),
+      ph.index === 0 ? documentShortcut() : null,
       quickActions(day),
       notBookedNote(day.iso),
       tomorrow ? notBookedNote(tomorrow.iso) : null,
@@ -816,6 +818,7 @@ function dayDetail(d, i) {
     d.checked_on ? chip(`Checked ${d.checked_on}`, 'plain') : null));
   return h('div', { class: 'day-detail' },
     dayJumpStrip(i),
+    i === 0 ? documentShortcut() : null,
     header,
     h('p', { class: 'body lead' }, d.summary),
     notBookedNote(d.iso),
@@ -1022,7 +1025,7 @@ function guides() {
 }
 
 function infoTitle(id) {
-  const fixed = { 'to-book': 'To book', hotel: 'Hotel', 'getting-around': 'Getting around', bookings: 'Bookings', airport: 'Airport day', 'shopping-and-tax-refunds': 'Tax-free shopping', guides: 'Guides', decisions: 'Decisions', 'next-up': 'Next up', 'what-we-want': 'What we want', sources: 'Sources', app: 'App', taxi: 'Taxi card' };
+  const fixed = { documents: 'Documents', 'to-book': 'To book', hotel: 'Hotel', 'getting-around': 'Getting around', bookings: 'Bookings', airport: 'Airport day', 'shopping-and-tax-refunds': 'Tax-free shopping', guides: 'Guides', decisions: 'Decisions', 'next-up': 'Next up', 'what-we-want': 'What we want', sources: 'Sources', app: 'App', taxi: 'Taxi card' };
   if (fixed[id]) return fixed[id];
   const s = docSec(id);
   return s ? s.title : 'Info';
@@ -1032,6 +1035,7 @@ function viewInfo(r) {
   const id = r.sub[0];
   const rows = (ids) => grouped(ids.filter((x) => ['hotel', 'airport', 'guides', 'app', 'to-book'].includes(x) || (docSec(x) && docSec(x).md.trim())).map((x) => pushRow(`info/${x}`, infoTitle(x))));
   const list = [
+    documentShortcut(),
     section('Stay', grouped([pushRow('info/hotel', 'Hotel', ctx.trip.hotel.name),
       h('li', { class: 'row' }, link('info/taxi', { class: 'row-link', 'data-key': 'show-taxi' }, h('span', { class: 'row-text' }, h('span', { class: 'row-title tint' }, 'Show taxi card')), icon('car', null, 'chevron'))),
       h('li', { class: 'row' }, ext(dirUrl(ctx.trip.hotel.maps_query, 'transit'), [h('span', { class: 'row-text' }, h('span', { class: 'row-title tint' }, 'Back to the hotel')), icon('arrowOut', null, 'chevron')], { class: 'row-link' }))])),
@@ -1045,11 +1049,44 @@ function viewInfo(r) {
   else if (id === 'taxi') return { title: 'Info', main: list, overlay: taxiCard() };
   else if (id === 'app') main = appSettings();
   else if (id === 'airport') main = airportDay();
+  else if (id === 'documents') main = documentsView();
   else if (id === 'to-book') main = toBookView();
   else if (id === 'guides') main = r.sub[1] ? docView(r.sub[1]) : grouped(guides().map((s) => pushRow(`info/guides/${s.id}`, s.title)));
   else main = docView(id);
   const title = id === 'guides' && r.sub[1] ? infoTitle(r.sub[1]) : infoTitle(id);
   return { title, large: false, back: id === 'guides' && r.sub[1] ? ['info/guides', 'Guides'] : ['info', 'Info'], list, listLabel: 'Info', main: [h('h2', { class: 'section-title' }, title), main] };
+}
+
+function documentShortcut() {
+  return ctx.trip.documents?.length
+    ? grouped([pushRow('info/documents', 'Documents', 'Arrival QR codes, flights, hotels and insurance')])
+    : null;
+}
+
+function documentsView() {
+  const documents = ctx.trip.documents || [];
+  if (!documents.length) return h('p', { class: 'empty' }, 'No documents have been added.');
+  const groups = [
+    ['arrival', 'Arrival QR codes and entry details'],
+    ['flights', 'Flights'],
+    ['hotels', 'Hotels'],
+    ['insurance', 'Travel insurance'],
+  ];
+  return [
+    h('p', { class: 'caption' }, 'In Files, go to iCloud Drive → Travel & Events → Japan 2026. The file paths below start there.'),
+    ...groups.map(([key, label]) => {
+      const rows = documents.filter((doc) => doc.group === key).map((doc) => {
+        const name = h('span', { class: 'row-text' }, h('span', { class: 'row-title' }, doc.title),
+          h('span', { class: 'row-sub' }, doc.file));
+        return h('li', { class: 'row' }, doc.url
+          ? ext(doc.url, [name, icon('arrowOut', null, 'chevron')], { class: 'row-link' })
+          : h('div', { class: 'row-link' }, name));
+      });
+      return rows.length ? section(label, grouped(rows), key === 'arrival'
+        ? ext('https://www.vjw.digital.go.jp/', [icon('arrowOut'), 'Open Visit Japan Web'], { class: 'text-btn' })
+        : null) : null;
+    }),
+  ];
 }
 
 function docView(id) {
@@ -1095,6 +1132,7 @@ function airportDay() {
   const bookings = docSec('bookings');
   const flights = bookings ? bookings.md.split('\n').filter((l) => /^\|/.test(l)).join('\n').split(/\n(?=\| Hotel)/)[0] : '';
   return [
+    documentShortcut(),
     section('Arrival and departure', grouped([pushRow(`days/${first.iso}`, first.title, first.date), pushRow(`days/${last.iso}`, last.title, last.date)])),
     flights ? section('Flights', h('div', { class: 'doc' }, markdown(flights))) : null,
     airportRows ? section('Airport transfers', h('div', { class: 'doc' }, markdown(airportRows))) : null,

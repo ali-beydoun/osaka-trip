@@ -183,6 +183,21 @@ trip.days.forEach((d) => d.zones.forEach((z) => (z.eat || []).forEach((it) => {
 })));
 trip.to_book = { note: 'Only the flights and hotels are booked. Nothing on this list is booked yet (owner, 8 Nov 2026).', items: toBook };
 
+// Document pointers only. Originals remain in iCloud Drive.
+if (fs.existsSync(path.join(PRIVATE_DIR, 'documents.local.json'))) {
+  const documents = JSON.parse(read('documents.local.json'));
+  trip.documents = documents.map(({ group, title, file, url }) => {
+    if (url) {
+      const link = new URL(url);
+      if (link.protocol !== 'https:' || !['icloud.com', 'www.icloud.com'].includes(link.host) ||
+          link.username || link.password || !link.pathname.startsWith('/iclouddrive/')) {
+        throw new Error('A document link must point to iCloud Drive.');
+      }
+    }
+    return { group, title, file, ...(url ? { url } : {}) };
+  });
+}
+
 const json = JSON.stringify(trip, null, 1);
 for (const d of payloadRedactions) if (json.includes(d)) throw new Error('Redaction failed: a private Claude link remains in the payload.');
 fs.writeFileSync(TRIP_FILE, json + '\n', { mode: 0o600 });
