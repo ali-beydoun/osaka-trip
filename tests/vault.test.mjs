@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
-import { deriveKey, seal, open, randomBytes, b64uEncode, linkSecretFromHash, envelopeSalt, gunzipToJson } from '../docs/js/vault.js';
+import { deriveKey, seal, open, randomBytes, b64uEncode, linkSecretFromHash, extractLinkParam, classifyLinkInput, passwordCandidates, envelopeSalt, gunzipToJson } from '../docs/js/vault.js';
 
 const ITER = 1000; // fast for tests; production uses KDF_ITERATIONS
 
@@ -47,4 +47,47 @@ test('password unicode normalisation is stable', async () => {
   const a = await deriveKey('café', link, salt, ITER, true);
   const b = await deriveKey('café', link, salt, ITER, true);
   assert.deepEqual(new Uint8Array(await crypto.subtle.exportKey('raw', a)), new Uint8Array(await crypto.subtle.exportKey('raw', b)));
+});
+
+test('classifyLinkInput and extractLinkParam distinguish missing, truncated and chat-wrapped links', () => {
+  const s = randomBytes(32);
+  const enc = b64uEncode(s);
+  assert.equal(classifyLinkInput(''), 'missing');
+  assert.equal(classifyLinkInput('https://osaka.example/'), 'missing');
+  assert.equal(classifyLinkInput('https://osaka.example/#k=short'), 'truncated');
+  assert.equal(classifyLinkInput(`https://osaka.example/#k=${enc}`), 'valid');
+  assert.equal(classifyLinkInput(`Here is the invite: https://osaka.example/#k=${enc} see you there!`), 'valid');
+  assert.equal(extractLinkParam(`Message: https://osaka.example/#k=${enc}&v=today`, { allowBare: true }), enc);
+  assert.equal(extractLinkParam(enc, { allowBare: true }), enc);
+  assert.equal(linkSecretFromHash(enc), null);
+});
+
+test('passwordCandidates recovers paste whitespace and mobile auto-cap while keeping both factors required', async () => {
+  const link = randomBytes(32), salt = randomBytes(16);
+  const key = await deriveKey('osaka-pass', link, salt, ITER);
+  const payload = { ok: 1 };
+  const env = await seal(key, new Uint8Array(zlib.gzipSync(JSON.stringify(payload))), { salt, iterations: ITER, rev: 'r1' });
+
+  for (const input of ['  osaka-pass\n', 'Osaka-pass', 'OSAKA-PASS', '  Osaka-pass  ']) {
+    const cands = passwordCandidates(input);
+    let opened = null;
+    for (const cand of cands) {
+      try {
+        const k = await deriveKey(cand, link, salt, ITER);
+        opened = await gunzipToJson(await open(k, env));
+        break;
+      } catch { /* next */ }
+    }
+    assert.deepEqual(opened, payload, `expected recovery for ${JSON.stringify(input)}`);
+  }
+
+  for (const cand of passwordCandidates('wrong-pass')) {
+    const k = await deriveKey(cand, link, salt, ITER);
+    await assert.rejects(open(k, env));
+  }
+  const wrongLink = randomBytes(32);
+  for (const cand of passwordCandidates('  Osaka-pass ')) {
+    const k = await deriveKey(cand, wrongLink, salt, ITER);
+    await assert.rejects(open(k, env));
+  }
 });

@@ -1,5 +1,5 @@
 // Boot, unlock and routing. Rendering lives in ui.js.
-import { linkSecretFromHash, envelopeSalt } from './vault.js';
+import { linkSecretFromHash, extractLinkParam, classifyLinkInput, passwordCandidates } from './vault.js';
 import { fetchEnvelope, keyFromPassword, decryptTrip } from './trip.js';
 import { saveKey, loadKey, forgetKey } from './keystore.js';
 import * as ui from './ui.js';
@@ -78,28 +78,29 @@ export async function unlock(password, remember) {
   const link = linkSecretFromHash(location.hash);
   if (!link) return { ok: false, reason: 'missing-link' };
   const started = performance.now();
-  try {
-    const key = await keyFromPassword(state.env, password, link);
-    state.trip = await decryptTrip(state.env, key);
-    state.key = key;
-    if (remember) await saveKey(state.env.kdf.salt, key);
-    setPref('remember', !!remember);
-    startApp({ fromUnlock: true });
-    return { ok: true };
-  } catch {
-    const wait = FAIL_DELAY_MS - (performance.now() - started);
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    return { ok: false, reason: 'wrong' };
+  const candidates = passwordCandidates(password);
+  for (const candidate of candidates) {
+    try {
+      const key = await keyFromPassword(state.env, candidate, link);
+      state.trip = await decryptTrip(state.env, key);
+      state.key = key;
+      if (remember) await saveKey(state.env.kdf.salt, key);
+      setPref('remember', !!remember);
+      startApp({ fromUnlock: true });
+      return { ok: true };
+    } catch {
+      // Try bounded paste-whitespace / mobile-capitalization candidate if present.
+    }
   }
+  const wait = FAIL_DELAY_MS - (performance.now() - started);
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  return { ok: false, reason: 'wrong' };
 }
 
-// Accepts a pasted private link (or just its fragment) and adopts its secret.
+// Accepts a pasted private link (including chat text wrapping it, or just its fragment) and adopts its secret.
 export function adoptLink(text) {
-  const t = (text || '').trim();
-  const hash = t.includes('#') ? t.slice(t.indexOf('#')) : `#${t}`;
-  const secret = linkSecretFromHash(hash);
-  if (!secret) return false;
-  const k = new URLSearchParams(hash.slice(1)).get('k');
+  const k = extractLinkParam(text);
+  if (!k) return false;
   writeHash({ k }, { replace: true });
   return true;
 }
@@ -126,23 +127,33 @@ async function replaceLink(text) {
   return true;
 }
 
-function showLock() {
+function showLock({ forcePaste = false } = {}) {
   const hasLink = !!linkSecretFromHash(location.hash);
+  const linkIssue = classifyLinkInput(location.hash);
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   ui.renderLock({
-    state: hasLink ? 'password' : 'missing-link',
+    state: (hasLink && !forcePaste) ? 'password' : 'missing-link',
+    linkIssue,
+    hasHashLink: hasLink,
     standalone,
     remember: state.prefs.remember !== false,
     onUnlock: unlock,
+    onSwitchToPasteLink: () => showLock({ forcePaste: true }),
+    onBackToPassword: () => showLock({ forcePaste: false }),
     onPasteLink: (text) => {
       const ok = adoptLink(text);
-      if (ok) showLock();
+      if (ok) showLock({ forcePaste: false });
       return ok;
     },
   });
 }
 
 // ---------- App ----------
+function getInviteUrl() {
+  const k = extractLinkParam(location.hash);
+  return k ? `${location.origin}${location.pathname}#k=${k}` : '';
+}
+
 function startApp({ fromUnlock = false } = {}) {
   ui.renderApp({
     fromUnlock,
@@ -155,6 +166,7 @@ function startApp({ fromUnlock = false } = {}) {
     lockNow,
     setRemember,
     replaceLink,
+    getInviteUrl,
     online: state.online,
   });
 }
@@ -169,12 +181,16 @@ window.addEventListener('popstate', onLocation);
 window.addEventListener('online', () => { state.online = true; ui.setOnline(true); });
 window.addEventListener('offline', () => { state.online = false; ui.setOnline(false); });
 
+let swRegistered = false;
 async function boot() {
-  registerSW();
+  if (!swRegistered) { swRegistered = true; registerSW(); }
   try {
     state.env = await fetchEnvelope();
   } catch {
-    ui.renderLock({ state: 'offline-first', onRetry: () => location.reload() });
+    ui.renderLock({
+      state: navigator.onLine === false ? 'offline-first' : 'load-failed',
+      onRetry: () => boot(),
+    });
     return;
   }
   if (await tryRemembered()) startApp();

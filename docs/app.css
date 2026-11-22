@@ -326,7 +326,15 @@ body.just-unlocked .shell { animation: fade-in var(--dur-base) var(--ease-decele
 .zone-spa-jump { margin: var(--space-2) 0 var(--space-3); }
 .spa-zone-group + .spa-zone-group { padding-top: var(--space-2); }
 #day-spa, #day-travel { scroll-margin-top: calc(env(safe-area-inset-top, 0px) + var(--nav-h) + var(--space-5)); }
-.travel-top-jump { margin: 0 0 var(--space-4); }
+.travel-top-jump { margin: var(--space-3) 0 0; }
+.lock-recovery { display: flex; flex-wrap: wrap; justify-content: center; margin-top: var(--space-2); }
+.lock-recovery .text-btn { min-width: var(--hit); border: 0; background: none; cursor: pointer; }
+.from-here-row { display: flex; flex-wrap: wrap; gap: var(--hit-gap); margin: var(--space-3) 0; }
+.from-here-row .btn { flex: 1 1 12em; min-width: 0; padding: 0 var(--space-3); }
+.now-go-label { margin-top: var(--space-3); }
+.next-step-card { margin: var(--space-4) 0; border-left: 3px solid var(--tint); min-width: 0; }
+.next-step-title { margin: var(--space-1) 0; font-size: var(--fs-title3); line-height: var(--lh-title3); font-weight: var(--fw-semibold); }
+.end-hotel-actions, .invite-actions { display: flex; flex-wrap: wrap; gap: var(--hit-gap); margin: var(--space-3) 0; }
 .travel-intro { margin: 0 0 var(--space-4); max-width: var(--measure); color: var(--label-secondary); font-size: var(--fs-subheadline); line-height: var(--lh-subheadline); }
 .travel-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); min-width: 0; }
 .travel-card { margin: 0; border-radius: var(--radius-xl); box-shadow: 0 0 0 var(--hairline) var(--card-edge), var(--shadow-card); min-width: 0; }
@@ -339,6 +347,24 @@ body.just-unlocked .shell { animation: fade-in var(--dur-base) var(--ease-decele
 .travel-times { color: var(--tint); font-size: var(--fs-footnote); line-height: var(--lh-footnote); font-weight: var(--fw-semibold); }
 .travel-body { padding-top: var(--space-3); padding-bottom: var(--space-4); }
 .travel-body > .body { margin: var(--space-1) 0 var(--space-3); font-size: var(--fs-subheadline); line-height: var(--lh-subheadline); }
+.route-steps { display: grid; gap: var(--space-3); margin: var(--space-3) 0; padding: 0; list-style: none; }
+.route-step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--bg-grouped-tertiary); align-items: start; }
+.step-num { display: grid; place-items: center; width: 1.65em; height: 1.65em; margin-top: var(--space-1); border-radius: 50%; background: var(--tint-fill); color: var(--on-tint); font-size: var(--fs-footnote); font-weight: var(--fw-bold); }
+.step-body { display: grid; gap: var(--space-1); min-width: 0; }
+.step-head-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.step-head { color: var(--label); font-size: var(--fs-subheadline); line-height: var(--lh-subheadline); font-weight: var(--fw-semibold); }
+.step-detail { margin: 0; color: var(--label-secondary); font-size: var(--fs-footnote); line-height: var(--lh-footnote); }
+.step-book-box { display: grid; gap: var(--space-2); justify-items: start; margin-top: var(--space-2); padding-top: var(--space-2); border-top: var(--hairline) solid var(--separator); }
+.step-ticket-note { color: var(--label); font-size: var(--fs-caption1); line-height: var(--lh-caption1); font-weight: var(--fw-medium); }
+.taxi-alt-box { display: grid; gap: var(--space-2); margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--bg-grouped-tertiary); border-left: 3px solid var(--teal); min-width: 0; }
+.taxi-alt-when { margin: 0; color: var(--label); font-size: var(--fs-subheadline); line-height: var(--lh-subheadline); font-weight: var(--fw-medium); }
+.taxi-alt-maps, .taxi-alt-jp-actions, .taxi-actions { display: flex; flex-wrap: wrap; gap: var(--hit-gap); }
+.taxi-alt-maps .btn, .taxi-alt-jp-actions .btn { flex: 1 1 10em; min-width: 0; padding: 0 var(--space-3); }
+.taxi-alt-jp-wrap { display: grid; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--bg-grouped-secondary); }
+.taxi-inline-jp { margin: 0; font-family: var(--font-jp); font-size: var(--fs-headline); line-height: var(--lh-headline); font-weight: var(--fw-semibold); overflow-wrap: anywhere; }
+.taxi-alt-fallback, .taxi-fallback { margin: 0; color: var(--label-secondary); font-size: var(--fs-caption1); line-height: var(--lh-caption1); max-width: var(--measure); }
+.taxi-foot { display: grid; gap: var(--space-2); }
+.travel-more { margin-top: var(--space-3); background: var(--bg-grouped-tertiary); }
 .travel-kv { margin: var(--space-2) 0 var(--space-3); background: var(--bg-grouped-tertiary); border-radius: var(--radius-md); }
 .travel-maps { display: flex; flex-wrap: wrap; gap: var(--hit-gap); margin: var(--space-3) 0; }
 .travel-maps .btn { flex: 1 1 11em; min-width: 0; padding: 0 var(--space-3); }

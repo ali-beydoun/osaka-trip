@@ -59,24 +59,47 @@ if ('ResizeObserver' in window) {
 export function renderLock(opts) {
   document.body.className = 'is-locked';
   document.title = 'Osaka Trip';
-  const status = h('p', { class: 'lock-status', role: 'status', 'aria-live': 'polite' });
+  const status = h('p', { class: 'lock-status', id: 'lock-status', role: 'status', 'aria-live': 'polite' });
   const card = h('main', { class: 'lock', id: 'main' },
     h('div', { class: 'lock-mark', 'aria-hidden': 'true' }, icon('lock')),
     h('h1', { class: 'lock-title' }, 'Osaka Trip'));
 
-  if (opts.state === 'offline-first') {
+  if (opts.state === 'offline-first' || opts.state === 'load-failed') {
+    const isOffline = opts.state === 'offline-first';
     card.append(
-      h('p', { class: 'lock-body' }, 'You’re offline, and this device hasn’t opened the trip before. Connect once to download it. After that it works offline.'),
+      h('p', { class: 'lock-body' }, isOffline
+        ? 'You’re offline, and this device hasn’t opened the trip before. Connect once to download it. After that it works offline.'
+        : 'Couldn’t load the encrypted trip right now. Check your connection or Wi-Fi sign-in page, then tap Try Again.'),
       h('button', { class: 'btn btn-filled', type: 'button', onclick: opts.onRetry }, icon('reload'), 'Try Again'));
   } else if (opts.state === 'missing-link') {
-    const field = h('input', { class: 'field', id: 'link', type: 'url', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', inputmode: 'url', enterkeyhint: 'go', placeholder: 'https://…#k=…' });
+    const field = h('input', { class: 'field', id: 'link', type: 'url', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', inputmode: 'url', enterkeyhint: 'go', placeholder: 'https://…#k=…' });
+    if (opts.linkIssue === 'truncated') {
+      status.textContent = 'That isn’t a complete trip link. Copy the whole link, including every character after #k=.';
+    }
+    const tryPasteClipboard = (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.readText)
+      ? h('button', { class: 'btn btn-gray', type: 'button', onclick: async () => {
+        try {
+          const clip = await navigator.clipboard.readText();
+          if (!clip) { status.textContent = 'Clipboard is empty. Copy the full invite link first.'; field.focus(); return; }
+          field.value = clip;
+          if (!opts.onPasteLink(clip)) {
+            status.textContent = 'That isn’t a complete trip link. Copy the whole link, including the part after #.';
+            field.focus();
+          }
+        } catch {
+          status.textContent = 'Paste directly into the box above and tap Continue.';
+          field.focus();
+        }
+      } }, icon('copy'), 'Paste from Clipboard') : null;
     const form = h('form', { class: 'lock-form', novalidate: true, onsubmit: (e) => {
       e.preventDefault();
       if (!opts.onPasteLink(field.value)) { status.textContent = 'That isn’t a complete trip link. Copy the whole link, including the part after #.'; field.focus(); }
     } },
     h('label', { class: 'lock-label', for: 'link' }, 'Private trip link'),
     field,
-    h('button', { class: 'btn btn-filled', type: 'submit' }, 'Continue'));
+    h('button', { class: 'btn btn-filled', type: 'submit' }, 'Continue'),
+    tryPasteClipboard,
+    opts.hasHashLink && opts.onBackToPassword ? h('button', { class: 'text-btn small', type: 'button', onclick: opts.onBackToPassword }, 'Back to password') : null);
     card.append(h('p', { class: 'lock-body' }, opts.standalone
       ? 'The Home Screen app needs your private trip link once. Paste it here, then enter the password.'
       : 'Open this app from your private trip link, or paste the link here.'), form, status);
@@ -92,6 +115,8 @@ export function renderLock(opts) {
     } }, icon('eye'));
     const remember = h('input', { type: 'checkbox', id: 'remember', class: 'switch', role: 'switch', checked: opts.remember });
     const button = h('button', { class: 'btn btn-filled', type: 'submit' }, h('span', { class: 'btn-label' }, 'Unlock'), h('span', { class: 'btn-progress', 'aria-hidden': 'true' }));
+    const recovery = h('div', { class: 'lock-recovery' },
+      opts.onSwitchToPasteLink ? h('button', { class: 'text-btn small', type: 'button', onclick: opts.onSwitchToPasteLink }, icon('link'), h('span', null, 'Replace or paste invite link')) : null);
     status.id = 'lock-status';
     const form = h('form', { class: 'lock-form', onsubmit: async (e) => {
       e.preventDefault();
@@ -114,7 +139,7 @@ export function renderLock(opts) {
     h('div', { class: 'field-wrap' }, field, eye),
     h('div', { class: 'lock-remember' }, h('label', { for: 'remember' }, 'Keep unlocked on this device'), remember),
     button);
-    card.append(h('p', { class: 'lock-body' }, 'Enter the trip password to open the plan.'), form, status,
+    card.append(h('p', { class: 'lock-body' }, 'Enter the trip password to open the plan.'), form, status, recovery,
       h('p', { class: 'lock-foot' }, 'Both the private link and the password are needed. Nothing is sent to a server.'));
     queueMicrotask(() => field.focus());
   }
@@ -237,14 +262,17 @@ function draw({ dir, initial } = {}) {
   const saved = scrollMemory.get(ctx.route.v);
   const zJump = r.tab === 'days' && r.sub[0] && r.params.has('z') && !place && !overlay ? Number(r.params.get('z')) : -1;
   const focusSpa = r.tab === 'days' && r.sub[0] && r.params.get('focus') === 'spa' && !place && !overlay;
+  const focusTravel = r.tab === 'days' && r.sub[0] && r.params.get('focus') === 'travel' && !place && !overlay;
   if (zJump >= 0 && Number.isInteger(zJump)) {
     queueMicrotask(() => jumpToZone(zJump));
   } else if (focusSpa) {
     queueMicrotask(() => jumpToSpa());
+  } else if (focusTravel) {
+    queueMicrotask(() => jumpToTravel());
   } else if (dir === 'none' || dir === 'push' || dir === 'swap') window.scrollTo(0, dir === 'none' && saved ? saved : 0);
   else if (dir === 'pop' && saved !== undefined) window.scrollTo(0, saved);
   onScroll();
-  if (!initial && zJump < 0 && !focusSpa && !overlay) {
+  if (!initial && zJump < 0 && !focusSpa && !focusTravel && !overlay) {
     const detailFocus = place && document.querySelector('.sheet-close, .inspector .place-title');
     const target = (detailFocus && !document.querySelector('.inspector') ? detailFocus : null)
       || (place && document.querySelector('.inspector') ? document.querySelector('.inspector .place-title') : null)
@@ -415,12 +443,16 @@ function mapsUrl(q) {
   return ctx.prefs.maps === 'apple' ? `https://maps.apple.com/?q=${encodeURIComponent(q)}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
+function googleFromHereUrl(q, mode = 'transit') {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}&travelmode=${mode}`;
+}
+
 function dirUrl(q, mode) {
   if (ctx.prefs.maps === 'apple') {
     const flag = { walking: 'w', transit: 'r', driving: 'd' }[mode] || 'r';
     return `https://maps.apple.com/?daddr=${encodeURIComponent(q)}&dirflg=${flag}`;
   }
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}&travelmode=${mode}`;
+  return googleFromHereUrl(q, mode);
 }
 
 function routeDirUrl(origin, dest, mode = 'transit') {
@@ -431,6 +463,62 @@ function routeDirUrl(origin, dest, mode = 'transit') {
     return `https://maps.apple.com/?saddr=${encodeURIComponent(origin)}&daddr=${encodeURIComponent(dest)}&dirflg=${flag}`;
   }
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=${mode}`;
+}
+
+function showToast(msg, ic = 'check') {
+  document.querySelectorAll('.toast').forEach((x) => x.remove());
+  const t = h('div', { class: 'toast', role: 'status' }, icon(ic), h('span', null, msg));
+  document.body.append(t);
+  setTimeout(() => t.remove(), 2600);
+}
+
+async function copyPlainText(text) {
+  if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(text); return true; } catch { /* fallback below */ }
+  }
+  try {
+    const ta = h('textarea', { class: 'sr-only', readonly: true });
+    ta.value = text;
+    document.body.append(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function copyTextButton(text, label = 'Copy Japanese', ariaLabel = '') {
+  if (!text) return null;
+  const span = h('span', null, label);
+  return h('button', {
+    type: 'button',
+    class: 'btn btn-gray btn-small',
+    'aria-label': ariaLabel || label,
+    onclick: async () => {
+      const ok = await copyPlainText(text);
+      span.textContent = ok ? 'Copied' : label;
+      showToast(ok ? 'Copied to clipboard' : 'Select and copy the Japanese text above');
+      setTimeout(() => { span.textContent = label; }, 2200);
+    },
+  }, icon('copy'), span);
+}
+
+function fromHereActionRow(destQuery, destName, mode = 'transit', { primaryFilled = false, pointOrigin = '', pointDest = '', pointLabel = '' } = {}) {
+  if (!destQuery) return null;
+  const isApple = ctx.prefs.maps === 'apple';
+  const primaryCls = primaryFilled ? 'btn btn-filled' : 'btn btn-tinted btn-small';
+  return h('div', { class: 'from-here-row' },
+    ext(dirUrl(destQuery, mode),
+      [icon('arrowOut'), h('span', null, 'Directions from here')],
+      { class: primaryCls, 'aria-label': `Directions from here to ${destName}` }),
+    isApple ? ext(googleFromHereUrl(destQuery, mode),
+      [icon('map'), h('span', null, 'Google Maps from here')],
+      { class: 'btn btn-gray btn-small', 'aria-label': `Google Maps from here to ${destName}` }) : null,
+    pointOrigin && pointDest ? ext(routeDirUrl(pointOrigin, pointDest, mode),
+      [icon(MODE_ICON[mode] || 'train'), h('span', null, `Point-to-point: ${pointLabel || destName}`)],
+      { class: 'btn btn-gray btn-small', 'aria-label': `Point-to-point route from ${pointOrigin} to ${pointDest}` }) : null);
 }
 
 const MODE_ICON = { walking: 'walk', transit: 'train', driving: 'car' };
@@ -787,7 +875,13 @@ function viewToday(r) {
       focus !== null && focus !== undefined ? zoneNowCard(day, day.zones[focus], nn.now === focus ? 'Now' : 'Next', focus, nextZone, focusZoneBookings)
         : h('section', { class: 'now-card', 'aria-label': 'Today’s plan' },
           h('p', { class: 'eyebrow' }, nn.done ? 'Plan done' : 'Today’s plan'),
-          h('p', { class: 'body' }, nn.done ? 'That’s today’s plan done. Time to head back.' : day.summary),
+          h('p', { class: 'body' }, nn.done ? 'That’s today’s plan done. Time to head back.' : (day.short_summary || day.summary)),
+          fromHereActionRow(
+            nn.done ? (day.home?.maps_query || t.hotel.maps_query) : (day.zones?.[0]?.getting_there?.maps_query || t.hotel.maps_query),
+            nn.done ? (t.hotel.name || 'the hotel') : (day.zones?.[0]?.getting_there?.arrive_at || day.zones?.[0]?.name || 'start of day'),
+            nn.done ? hotelReturnMode(day) : (day.zones?.[0]?.getting_there?.mode || 'transit'),
+            { primaryFilled: true },
+          ),
           link(`days/${day.iso}`, { class: 'text-btn small', 'data-key': 'now-open-day' }, icon('calendar'), h('span', null, 'Open the full day'))),
       dayConfirmed.length ? section('Confirmed today', h('div', { class: 'bookings-stack' }, dayConfirmed.map((b) => confirmedBookingCard(b, { day, v: 'today' })))) : null,
       isAirportBoundary ? documentShortcut() : null,
@@ -826,16 +920,25 @@ function zoneNowCard(day, z, label, zi = 0, nextZ = null, zBookings = []) {
     restSpots.length ? `Rest & coffee: ${restSpots.join(', ')}` : '',
   ].filter(Boolean).join(' \u00b7 ');
   const nextGt = nextZ?.getting_there || {};
+  const leadBooking = zBookings[0];
+  const heroDest = (leadBooking && (leadBooking.maps_query || leadBooking.venue))
+    || gt.maps_query
+    || zItems[0]?.maps_query
+    || zItems[0]?.name
+    || z.name;
+  const heroName = (leadBooking && leadBooking.venue) || gt.arrive_at || z.name;
+  const heroMode = leadBooking ? (leadBooking.mode || (leadBooking.kind === 'transfer' ? 'driving' : 'walking')) : (gt.mode || 'transit');
   return h('section', { class: 'now-card', 'aria-label': `${label}: ${z.name}` },
     h('div', { class: 'now-top' }, chip(label, isNow ? 'now' : 'next'), h('span', { class: 'meta nums' }, z.time)),
     h('p', { class: 'now-title' }, z.name),
     h('p', { class: 'body' }, z.purpose),
     zBookings.length ? h('div', { class: 'chips' }, zBookings.map((b) =>
       chip(['Confirmed', b.time, b.venue].filter(Boolean).join(' \u00b7 '), 'ev ev-certified', 'checkCircle'))) : null,
+    h('p', { class: 'eyebrow now-go-label' }, `Go to: ${heroName}`),
+    fromHereActionRow(heroDest, heroName, heroMode, { primaryFilled: true }),
     isNow && z.short_route ? h('p', { class: 'meta' }, `Shorter walk: ${z.short_route}`) : null,
     isNow && inZoneSummary ? h('p', { class: 'meta' }, inZoneSummary) : null,
     !isNow && gt.how ? metaLine([gt.minutes ? `About ${gt.minutes} min` : '', gt.fare, gt.arrive_at ? `to ${gt.arrive_at}` : '']) : null,
-    !isNow && gt.maps_query ? goButtons(gt.maps_query, gt.arrive_at || z.name, gt.mode) : null,
     isNow && nextZ ? h('div', { class: 'now-next-box' },
       h('p', { class: 'eyebrow' }, `Next \u00b7 ${nextZ.time}`),
       h('p', { class: 'now-next-title' }, nextZ.name),
@@ -843,7 +946,7 @@ function zoneNowCard(day, z, label, zi = 0, nextZ = null, zBookings = []) {
       : isNow ? h('div', { class: 'now-next-box' }, h('p', { class: 'eyebrow' }, 'Then'), h('p', { class: 'meta' }, day.home?.how || 'Back to the hotel when ready.')) : null,
     h('div', { class: 'now-actions' },
       link(`days/${day.iso}?z=${zi}`, { class: 'text-btn small', 'data-key': `now-zone-${zi}` }, icon('calendar'), h('span', null, `Open Zone ${zi + 1} in day plan`)),
-      isNow && gt.maps_query ? ext(dirUrl(gt.maps_query, gt.mode || 'transit'), [icon(MODE_ICON[gt.mode] || 'train'), h('span', null, gt.arrive_at || 'Zone station')], { class: 'text-btn small' }) : null));
+      day.travel_cards?.length ? link(`days/${day.iso}?focus=travel`, { class: 'text-btn small', 'data-key': `now-trv-${day.iso}` }, icon('train'), h('span', null, 'Step-by-step transit')) : null));
 }
 
 function quickActions(day, focusZoneIdx = null) {
@@ -1062,24 +1165,60 @@ function spaOptionsContent(d) {
     grouped(g.rows)));
 }
 
-function travelCard(c) {
-  const rows = [
+const STEP_ICON = { walk: 'walk', train: 'train', subway: 'train', transfer: 'reload', exit: 'arrowOut', bus: 'train', taxi: 'car' };
+
+function travelStepRow(st, idx) {
+  const modeKey = String(st.mode || 'train').toLowerCase();
+  const modeLabel = st.mode_label || (modeKey.charAt(0).toUpperCase() + modeKey.slice(1));
+  return h('li', { class: 'route-step' },
+    h('span', { class: 'step-num nums', 'aria-hidden': 'true' }, String(idx + 1)),
+    h('div', { class: 'step-body' },
+      h('div', { class: 'step-head-row' },
+        chip(modeLabel, 'plain', STEP_ICON[modeKey] || 'train'),
+        st.head ? h('span', { class: 'step-head' }, st.head) : null),
+      st.detail ? h('p', { class: 'step-detail' }, st.detail) : null,
+      st.book_url && st.book_label ? h('div', { class: 'step-book-box' },
+        ext(st.book_url, [icon('link'), h('span', null, st.book_label)], { class: 'btn btn-tinted btn-small' }),
+        st.ticket_note ? h('span', { class: 'step-ticket-note' }, st.ticket_note) : null) : null));
+}
+
+function taxiAltBox(tx, dayIso, idx, curV) {
+  if (!tx) return null;
+  const hasPickup = Boolean(tx.pickup_query && tx.pickup_label);
+  const hasDrop = Boolean(tx.dropoff_query && tx.dropoff_label);
+  return h('div', { class: 'taxi-alt-box' },
+    h('p', { class: 'eyebrow' }, 'Taxi alternative'),
+    tx.when ? h('p', { class: 'taxi-alt-when' }, tx.when) : null,
+    (hasPickup || hasDrop) ? h('div', { class: 'taxi-alt-maps' },
+      hasPickup ? ext(dirUrl(tx.pickup_query, 'walking'),
+        [icon('pin'), h('span', null, `Pickup: ${tx.pickup_label}`)],
+        { class: 'btn btn-gray btn-small', 'aria-label': `Pickup map: ${tx.pickup_label}` }) : null,
+      hasDrop ? ext(dirUrl(tx.dropoff_query, 'driving'),
+        [icon('car'), h('span', null, `Drop-off: ${tx.dropoff_label}`)],
+        { class: 'btn btn-tinted btn-small', 'aria-label': `Drop-off map: ${tx.dropoff_label}` }) : null) : null,
+    tx.jp_dest ? h('div', { class: 'taxi-alt-jp-wrap' },
+      h('p', { class: 'taxi-inline-jp', lang: 'ja' }, tx.jp_dest),
+      h('div', { class: 'taxi-alt-jp-actions' },
+        copyTextButton(tx.jp_dest, 'Copy Japanese', `Copy Japanese destination for ${tx.dropoff_label || 'taxi'}`),
+        dayIso ? link(withParam(curV, 'taxi', `trv:${dayIso}:${idx}`), { class: 'btn btn-gray btn-small', 'data-key': `trv-drv-${dayIso}-${idx}` },
+          icon('car'), h('span', null, 'Driver screen')) : null)) : null,
+    tx.fallback ? h('p', { class: 'taxi-alt-fallback' }, tx.fallback) : null);
+}
+
+function travelCard(c, dayIso = '', idx = 0) {
+  const curV = ctx.route.v || (dayIso ? `days/${dayIso}` : 'today');
+  const hasSteps = Array.isArray(c.steps) && c.steps.length > 0;
+  const legacyRows = !hasSteps ? [
     kvStack('Station & entrance', c.station_entrance),
     kvStack('Operator & line', c.operator_line),
     kvStack('Destination & signage', c.signage),
     kvStack('Transfers', c.transfers),
     kvStack('Arrival exit & last mile', c.arrival_exit),
-    kvStack('Fare & tickets', c.fare_booking),
-    kvStack('Where a taxi saves walking', c.taxi_tip),
-    kvStack('Watch-out & when to use', c.caveat),
-  ].filter(Boolean);
-  const mapBtns = [
-    c.route_dest ? ext(routeDirUrl(c.route_origin, c.route_dest, c.route_mode || 'transit'),
-      [icon(MODE_ICON[c.route_mode || 'transit'] || 'train'), h('span', null, c.route_label || 'Route in Maps')],
-      { class: 'btn btn-tinted btn-small' }) : null,
-    c.alt_route_dest ? ext(routeDirUrl(c.alt_route_origin, c.alt_route_dest, c.alt_route_mode || 'driving'),
-      [icon(MODE_ICON[c.alt_route_mode || 'driving'] || 'car'), h('span', null, c.alt_route_label || 'Taxi option in Maps')],
-      { class: 'btn btn-gray btn-small' }) : null,
+  ].filter(Boolean) : [];
+  const moreRows = [
+    kvStack('Fare & IC / tickets', c.fare_booking),
+    !c.taxi_alt && c.taxi_tip ? kvStack('Taxi tip', c.taxi_tip) : null,
+    kvStack('Watch-out & exceptions', c.caveat),
   ].filter(Boolean);
   const extLinks = (c.links || [])
     .filter((lk) => lk && lk.url && lk.label)
@@ -1088,7 +1227,10 @@ function travelCard(c) {
     c.door_to_door ? `Door-to-door: ${c.door_to_door}` : '',
     c.in_vehicle ? `In-vehicle: ${c.in_vehicle}` : '',
   ].filter(Boolean).join(' \u00b7 ');
-  return h('details', { class: `disclosure travel-card ${c.recommended ? 'is-recommended' : ''}`, open: c.open !== false },
+  const isOpenDefault = c.open !== undefined ? Boolean(c.open) : c.recommended !== false;
+  const destTarget = c.from_here_dest || c.route_dest || '';
+  const destLabel = c.dest_label || c.route_dest || c.title;
+  return h('details', { class: `disclosure travel-card ${c.recommended ? 'is-recommended' : 'is-variant'}`, open: isOpenDefault },
     h('summary', { class: 'travel-summary' },
       h('span', { class: 'travel-summary-body' },
         h('span', { class: 'travel-chips' },
@@ -1098,9 +1240,19 @@ function travelCard(c) {
         timeLine ? h('span', { class: 'travel-times nums' }, timeLine) : null)),
     h('div', { class: 'disclosure-pad travel-body' },
       c.summary ? h('p', { class: 'body' }, c.summary) : null,
-      rows.length ? grouped(rows, 'kv-list travel-kv') : null,
-      mapBtns.length ? h('div', { class: 'travel-maps' }, ...mapBtns) : null,
-      extLinks.length ? h('div', { class: 'travel-links' }, ...extLinks) : null));
+      destTarget ? fromHereActionRow(destTarget, destLabel, c.route_mode || 'transit', {
+        primaryFilled: false,
+        pointOrigin: c.route_origin || '',
+        pointDest: c.route_dest || '',
+        pointLabel: c.p2p_label || c.route_label || destLabel,
+      }) : null,
+      hasSteps ? h('ol', { class: 'route-steps' }, c.steps.map((st, si) => travelStepRow(st, si))) : null,
+      legacyRows.length ? grouped(legacyRows, 'kv-list travel-kv') : null,
+      c.taxi_alt ? taxiAltBox(c.taxi_alt, dayIso, idx, curV) : null,
+      (moreRows.length || extLinks.length) ? h('details', { class: 'disclosure travel-more' },
+        h('summary', null, h('span', { class: 'summary-label' }, 'Fares, watch-outs & operator links')),
+        moreRows.length ? grouped(moreRows, 'kv-list travel-kv') : null,
+        extLinks.length ? h('div', { class: 'disclosure-pad travel-links' }, ...extLinks) : null) : null));
 }
 
 function travelCardsSection(d) {
@@ -1109,7 +1261,7 @@ function travelCardsSection(d) {
   return h('section', { class: 'group', id: 'day-travel', 'aria-labelledby': 'day-travel-title' },
     h('h2', { class: 'group-title', id: 'day-travel-title' }, 'Door-to-door travel'),
     d.travel_intro ? h('p', { class: 'travel-intro' }, d.travel_intro) : null,
-    h('div', { class: 'travel-stack' }, list.map((c) => travelCard(c))));
+    h('div', { class: 'travel-stack' }, list.map((c, idx) => travelCard(c, d.iso, idx))));
 }
 
 function dayDetail(d, i) {
@@ -1183,12 +1335,38 @@ function dayDetail(d, i) {
         }, h('span', { class: 'flow-jump-num nums', 'aria-hidden': 'true' }, String(zi + 1)), h('span', { class: 'flow-jump-name' }, z.name), icon('chevronRight', null, 'chevron')) : null));
   })) : null;
   const isAirportBoundary = i === 0 || i === t.days.length - 1;
+  const activeZi = nn.now !== null && nn.now !== undefined ? nn.now : 0;
+  const activeZone = d.zones?.[activeZi] || null;
+  const activeGt = activeZone?.getting_there || {};
+  const leadStartBooking = (bookingsByZone.get(activeZi) || [])[0] || dayConfirmed[0] || null;
+  const startDestQuery = (leadStartBooking && activeZi === 0 && (leadStartBooking.maps_query || leadStartBooking.venue))
+    || activeGt.maps_query
+    || d.travel_cards?.[0]?.from_here_dest
+    || d.travel_cards?.[0]?.route_dest
+    || activeZone?.name
+    || t.hotel.maps_query;
+  const startDestName = (leadStartBooking && activeZi === 0 && leadStartBooking.venue)
+    || activeGt.arrive_at
+    || activeZone?.name
+    || d.title;
+  const startMode = activeGt.mode || d.travel_cards?.[0]?.route_mode || 'transit';
+  const nextStepStrip = startDestQuery ? h('div', { class: 'card next-step-card' },
+    h('p', { class: 'eyebrow' }, isToday && nn.now !== null ? `Active now \u00b7 Zone ${activeZi + 1}` : `First stop \u00b7 ${activeZone?.time || d.date}`),
+    h('p', { class: 'next-step-title' }, startDestName),
+    activeZone?.short_route ? h('p', { class: 'meta' }, activeZone.short_route) : null,
+    fromHereActionRow(startDestQuery, startDestName, startMode, { primaryFilled: true }),
+    d.travel_cards?.length ? h('button', {
+      type: 'button',
+      class: 'flow-jump travel-top-jump',
+      onclick: () => jumpToTravel(),
+    }, icon('train'), h('span', null, `Step-by-step travel (${d.travel_cards.length})`), icon('chevronRight', null, 'chevron')) : null) : null;
   return h('div', { class: 'day-detail' },
     dayJumpStrip(i),
     isAirportBoundary ? documentShortcut() : null,
     header,
-    h('p', { class: 'body lead' }, d.summary),
+    h('p', { class: 'body lead' }, d.short_summary || d.summary),
     planBrief,
+    nextStepStrip,
     dayAreaBar(d),
     dayConfirmed.length ? section('Confirmed', h('div', { class: 'bookings-stack' }, dayConfirmed.map((b) => confirmedBookingCard(b, { day: d, v })))) : null,
     notBookedNote(d.iso),
@@ -1199,11 +1377,6 @@ function dayDetail(d, i) {
           d.route_strategy ? h('details', { class: 'disclosure route-top-disc' },
             h('summary', null, h('span', { class: 'summary-label' }, 'Route & pacing')),
             h('div', { class: 'disclosure-pad strategy-card' }, h('p', { class: 'body' }, d.route_strategy))) : null,
-          d.travel_cards && d.travel_cards.length ? h('button', {
-            type: 'button',
-            class: 'flow-jump travel-top-jump',
-            onclick: () => jumpToTravel(),
-          }, icon('train'), h('span', null, `Door-to-door travel cards (${d.travel_cards.length})`), icon('chevronRight', null, 'chevron')) : null,
           itineraryOverview,
           d.zones.length ? h('div', { class: 'itinerary-stages' }, d.zones.map((z, zi) => zoneCard(d, z, zi, v, flowLabelsByZone.get(zi) || [], bookingsByZone.get(zi) || [], nn.now === zi))) : null),
         travelCardsSection(d),
@@ -1211,6 +1384,10 @@ function dayDetail(d, i) {
           transferConfirmed.length ? h('div', { class: 'chips' }, transferConfirmed.map((b) =>
             chip(['Confirmed transfer', b.time, b.venue].filter(Boolean).join(' \u00b7 '), 'ev ev-certified', 'checkCircle'))) : null,
           h('p', { class: 'body' }, d.home.how),
+          fromHereActionRow(d.home.maps_query || t.hotel.maps_query, t.hotel.name || 'the hotel', hotelReturnMode(d)),
+          h('div', { class: 'end-hotel-actions' },
+            copyTextButton([t.hotel.name_jp, t.hotel.address_jp].filter(Boolean).join(' '), 'Copy hotel Japanese', 'Copy hotel Japanese address'),
+            link(withParam(v, 'taxi', 'hotel'), { class: 'btn btn-gray btn-small', 'data-key': `end-taxi-${d.iso}` }, icon('car'), h('span', null, 'Hotel driver screen'))),
           goButtons(d.home.maps_query || t.hotel.maps_query, 'the hotel', d.home.mode),
           d.home.source ? ext(d.home.source, [icon('link'), h('span', null, 'Source')], { class: 'text-btn' }) : null))),
       h('div', { class: 'day-secondary' },
@@ -1318,6 +1495,12 @@ function zoneCard(d, z, zi, v, phaseLabels = [], zBookings = [], isNow = false) 
       h('div', { class: 'disclosure-pad getting-body' },
         h('p', { class: 'body' }, gt.how),
         metaLine([gt.minutes ? `About ${gt.minutes} min` : '', gt.fare, gt.arrive_at]),
+        gt.maps_query ? fromHereActionRow(gt.maps_query, gt.arrive_at || z.name, gt.mode || 'transit', {
+          primaryFilled: false,
+          pointOrigin: gt.origin_query || (zi === 0 ? ctx.trip.hotel.maps_query : ''),
+          pointDest: gt.maps_query,
+          pointLabel: gt.origin_label || (zi === 0 ? `Hotel -> ${gt.arrive_at || z.name}` : ''),
+        }) : null,
         gt.maps_query ? goButtons(gt.maps_query, gt.arrive_at || z.name, gt.mode) : null)) : null,
     by('stops').length ? h('div', { class: 'zone-kind' }, h('h4', { class: 'kind-title' }, 'See'), grouped(by('stops').map((p) => placeRow(p, v)))) : null,
     z.what_to_look_for ? h('p', { class: 'zone-highlight' }, z.what_to_look_for) : null,
@@ -1553,7 +1736,8 @@ function hotelView() {
   ];
 }
 
-function driverCardView({ label = 'Taxi card', nameJp = '', addrJp = '', nameEn = '', addrEn = '', phone = '', query = '', walkInNoteJp = '', walkInNoteEn = '' }, onClose) {
+function driverCardView({ label = 'Taxi card', nameJp = '', addrJp = '', nameEn = '', addrEn = '', phone = '', query = '', pickupLabel = '', pickupQuery = '', fallbackNote = '', walkInNoteJp = '', walkInNoteEn = '' }, onClose) {
+  const jpCopy = [nameJp, addrJp].filter(Boolean).join(' ');
   const card = h('div', { class: 'taxi', role: 'dialog', 'aria-modal': 'true', 'aria-label': label, tabindex: '-1', onkeydown: (e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } } },
     h('div', { class: 'taxi-bar' }, h('button', { class: 'btn btn-plain', type: 'button', onclick: onClose }, 'Close')),
     h('div', { class: 'taxi-body' },
@@ -1563,11 +1747,18 @@ function driverCardView({ label = 'Taxi card', nameJp = '', addrJp = '', nameEn 
       addrJp ? h('p', { class: 'taxi-addr', lang: 'ja' }, addrJp) : null,
       nameEn ? h('p', { class: 'taxi-en' }, nameEn) : null,
       addrEn ? h('p', { class: 'taxi-en' }, addrEn) : null,
+      h('div', { class: 'taxi-actions' },
+        jpCopy ? copyTextButton(jpCopy, 'Copy Japanese', `Copy Japanese address for ${nameEn || 'destination'}`) : null,
+        pickupQuery && pickupLabel ? ext(dirUrl(pickupQuery, 'walking'), [icon('pin'), h('span', null, `Pickup: ${pickupLabel}`)], { class: 'btn btn-gray btn-small', 'aria-label': `Pickup map: ${pickupLabel}` }) : null,
+        phone ? ext(`tel:${phone.replace(/\s/g, '')}`, [icon('phone'), h('span', null, phone)], { class: 'btn btn-gray btn-small' }) : null),
+      h('p', { class: 'taxi-fallback' }, fallbackNote || 'Show this screen at a signed taxi rank, or tap Copy Japanese to paste into GO / Uber if destination prefill fails.'),
       walkInNoteJp ? h('div', { class: 'taxi-note' },
         h('p', { class: 'taxi-eyebrow' }, walkInNoteEn || 'For salon reception (walk-in inquiry)'),
-        h('p', { class: 'taxi-addr', lang: 'ja' }, walkInNoteJp)) : null,
-      phone ? ext(`tel:${phone.replace(/\s/g, '')}`, [icon('phone'), h('span', null, phone)], { class: 'btn btn-gray' }) : null),
-    goButtons(query || nameEn, nameEn || 'destination', 'driving'));
+        h('p', { class: 'taxi-addr', lang: 'ja' }, walkInNoteJp),
+        copyTextButton(walkInNoteJp, 'Copy Japanese inquiry', 'Copy Japanese walk-in inquiry')) : null),
+    h('div', { class: 'taxi-foot' },
+      fromHereActionRow(query || nameEn, nameEn || 'destination', 'driving', { primaryFilled: true }),
+      goButtons(query || nameEn, nameEn || 'destination', 'driving')));
   queueMicrotask(() => card.focus());
   return card;
 }
@@ -1630,6 +1821,23 @@ function driverCardFromParam(r) {
       walkInNoteJp: s.inquiry_jp || '',
     }, close);
   }
+  if (spec.startsWith('trv:')) {
+    const [, iso, rawIdx] = spec.split(':');
+    const d = dayOf(iso);
+    const tx = d?.travel_cards?.[Number(rawIdx)]?.taxi_alt;
+    if (!tx) return taxiCard(close);
+    return driverCardView({
+      label: `Driver card: ${tx.dropoff_label || 'Taxi drop-off'}`,
+      nameJp: tx.jp_dest || '',
+      addrJp: tx.jp_addr || '',
+      nameEn: tx.dropoff_label || '',
+      addrEn: tx.when || '',
+      query: tx.dropoff_query || tx.dropoff_label,
+      pickupLabel: tx.pickup_label || '',
+      pickupQuery: tx.pickup_query || '',
+      fallbackNote: tx.fallback || '',
+    }, close);
+  }
   return taxiCard(close);
 }
 
@@ -1656,10 +1864,14 @@ function appSettings() { // S13
   const p = ctx.prefs;
   const linkField = h('input', { class: 'field', type: 'url', id: 'newlink', placeholder: 'Paste a new private link', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
   const linkStatus = h('p', { class: 'lock-status', role: 'status' });
+  const inviteUrl = ctx.getInviteUrl ? ctx.getInviteUrl() : '';
   return [
-    section('Privacy', grouped([
+    section('Privacy & invite', grouped([
       h('li', { class: 'kv' }, toggleRow('Keep unlocked on this device', p.remember !== false, async (on) => { await ctx.setRemember(on); draw(); })),
-    ]), h('p', { class: 'caption' }, 'When on, this device opens the trip without the password. Lock now forgets it.'),
+      kv('Invite link status', inviteUrl ? 'Complete private link active' : 'Opened from saved device key'),
+    ]),
+    inviteUrl ? h('div', { class: 'invite-actions' }, copyTextButton(inviteUrl, 'Copy invite link', 'Copy private invite link to clipboard')) : h('p', { class: 'caption' }, 'To share with a new device, paste the full #k= invite link below first.'),
+    h('p', { class: 'caption' }, 'When Keep unlocked is on, this device opens the trip without re-entering the password. Lock now forgets the stored key.'),
     grouped([h('li', { class: 'row' }, h('button', { class: 'row-link row-button', type: 'button', onclick: () => ctx.lockNow() }, icon('lock'), h('span', { class: 'row-text' }, h('span', { class: 'row-title tint' }, 'Lock now'))))])),
     section('Appearance', segmented('Appearance', [['light', 'Light'], ['auto', 'Automatic'], ['dark', 'Dark']], p.appearance || window.osakaTheme.DEFAULT,
       (v) => { ctx.setPref('appearance', window.osakaTheme.apply(v)); draw(); }),
