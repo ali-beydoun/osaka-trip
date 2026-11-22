@@ -136,22 +136,31 @@ test('scoped suppression removes occupied meal/zone alternatives while preservin
   };
   assert.deepEqual(activeToBookItems(mealScoped).map((x) => x.id), ['transfer-arrival', 'eat-1', 'eat-2', 'activity-d2']);
 
-  // Exact transfer matching suppresses only the matched transfer id/slot/zone, keeping unrelated same-day transfers
+  // Transfer supersession requires explicit replaces_to_book or exact date + leg/venue identity;
+  // unrelated or undirected same-day transfers (even in the same zone or with matching direction) stay visible.
   const withTransfer = {
     ...fixture,
     bookings: [
       ...fixture.bookings,
-      { id: 'bk-kix-in', day: '2030-05-07', status: 'confirmed', kind: 'transfer', replaces_to_book: 'transfer-arrival', time: '18:00', venue: 'Prebooked Airport Taxi', guests: 2, maps_query: 'Sample Hotel Osaka', mode: 'driving' },
+      { id: 'bk-kix-in', day: '2030-05-07', status: 'confirmed', kind: 'transfer', zone: 0, direction: 'arrival', slot: 'arrival', replaces_to_book: 'transfer-arrival', time: '18:00', venue: 'Sample Prebooked Sedan', guests: 2, maps_query: 'Sample Hotel Osaka', mode: 'driving' },
+      { id: 'bk-leg-out', day: '2030-05-09', status: 'confirmed', kind: 'transfer', zone: 0, leg: 'hotel-to-pier', time: '09:30', venue: 'Sample Pier Shuttle', guests: 2, maps_query: 'Sample Pier', mode: 'driving' },
     ],
     to_book: {
       note: fixture.to_book.note,
       items: [
         ...fixture.to_book.items,
-        { id: 'transfer-luggage', title: 'Sample luggage courier', day: '2030-05-07', slot: 'luggage', kind: 'transfer', need: 'needs', detail: 'Separate courier.' },
+        { id: 'transfer-luggage', title: 'Sample luggage courier', day: '2030-05-07', zone: 0, direction: 'arrival', slot: 'arrival', kind: 'transfer', need: 'needs', detail: 'Same zone and direction, unrelated task.' },
+        { id: 'transfer-undirected', title: 'Sample transit pass pickup', day: '2030-05-07', zone: 0, kind: 'transfer', need: 'optional', detail: 'Undirected same-day transfer task.' },
+        { id: 'transfer-leg-match', title: 'Sample morning pier transfer', day: '2030-05-09', leg: 'hotel-to-pier', kind: 'transfer', need: 'needs', detail: 'Superseded by exact date + leg.' },
+        { id: 'transfer-leg-return', title: 'Sample return pier transfer', day: '2030-05-09', leg: 'pier-to-hotel', kind: 'transfer', need: 'needs', detail: 'Different leg on same date stays visible.' },
+        { id: 'transfer-no-leg-d3', title: 'Sample undirected evening cab', day: '2030-05-09', zone: 0, kind: 'transport', need: 'optional', detail: 'Undirected transport on leg-booked day stays visible.' },
       ],
     },
   };
-  assert.deepEqual(activeToBookItems(withTransfer).map((x) => x.id), ['eat-1', 'eat-2', 'transfer-luggage']);
+  assert.deepEqual(
+    activeToBookItems(withTransfer).map((x) => x.id),
+    ['eat-1', 'eat-2', 'transfer-luggage', 'transfer-undirected', 'transfer-leg-return', 'transfer-no-leg-d3'],
+  );
 });
 
 test('global To book caption updates when confirmations exist and keeps default when none exist', () => {
