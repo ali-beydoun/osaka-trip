@@ -583,3 +583,24 @@ test('to book: scoped suppression, updated confirmation caption and device-only 
   await page.goto(url('today', 'asof=2030-05-03'));
   await expect(page.getByRole('checkbox', { name: /Sample airport transfer in/ })).not.toBeChecked();
 });
+
+test('door-to-door travel cards render leg details, 44pt route buttons, Maps preference and official links', async ({ page }) => {
+  await unlock(page);
+  await page.goto(url('days/2030-05-08'));
+  const sec = page.locator('#day-travel');
+  await expect(sec).toContainText('Door-to-door travel');
+  await expect(sec).toContainText('Door-to-door: ~60 to 70 min · In-vehicle: ~38 min combined');
+  const transitBtn = sec.getByRole('link', { name: 'Sample rail map' });
+  await expect(transitBtn).toHaveAttribute('href', /google\.com\/maps\/dir\/.*origin=Sample%20Hotel%20Osaka.*destination=Sample%20Park%20Station.*travelmode=transit/);
+  const taxiBtn = sec.getByRole('link', { name: 'Sample taxi map' });
+  await expect(taxiBtn).toHaveAttribute('href', /google\.com\/maps\/dir\/.*origin=Sample%20Park%20Station.*destination=Sample%20Upper%20Sanctuary.*travelmode=driving/);
+  for (const el of [transitBtn, taxiBtn, sec.getByRole('link', { name: 'Sample timetable' }), sec.getByRole('link', { name: 'Sample seat portal' })]) {
+    const box = await el.boundingBox();
+    expect(Math.round(box.height)).toBeGreaterThanOrEqual(44);
+    expect(Math.round(box.width)).toBeGreaterThanOrEqual(44);
+  }
+  await page.goto(url('info/app'));
+  await page.getByLabel('Open places in').selectOption('apple');
+  await page.goto(url('days/2030-05-08'));
+  await expect(sec.getByRole('link', { name: 'Sample rail map' })).toHaveAttribute('href', /maps\.apple\.com\/\?saddr=Sample%20Hotel%20Osaka&daddr=Sample%20Park%20Station&dirflg=r/);
+});

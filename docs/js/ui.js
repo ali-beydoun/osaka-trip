@@ -211,7 +211,7 @@ function draw({ dir, initial } = {}) {
   const place = view.place || null;
   const inspector = view.inspector && !isCompact();
   const overlay = view.overlay || (r.params.get('taxi') ? driverCardFromParam(r) : null);
-  const shell = h('div', { class: `shell tab-${r.tab}`, 'data-sidebar': sidebarState(), 'data-detail': place ? 'yes' : 'no' },
+  const shell = h('div', { class: `shell tab-${r.tab}`, 'data-view': ctx.route.v || r.tab, 'data-sidebar': sidebarState(), 'data-detail': place ? 'yes' : 'no' },
     h('a', { class: 'skip', href: '#main', onclick: (e) => { e.preventDefault(); document.getElementById('main')?.focus(); } }, 'Skip to content'),
     sidebar(r),
     h('div', { class: 'stage' },
@@ -422,6 +422,16 @@ function dirUrl(q, mode) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(q)}&travelmode=${mode}`;
 }
 
+function routeDirUrl(origin, dest, mode = 'transit') {
+  if (!dest) return '';
+  if (!origin) return dirUrl(dest, mode);
+  if (ctx.prefs.maps === 'apple') {
+    const flag = { walking: 'w', transit: 'r', driving: 'd' }[mode] || 'r';
+    return `https://maps.apple.com/?saddr=${encodeURIComponent(origin)}&daddr=${encodeURIComponent(dest)}&dirflg=${flag}`;
+  }
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=${mode}`;
+}
+
 const MODE_ICON = { walking: 'walk', transit: 'train', driving: 'car' };
 const MODE_VERB = { walking: 'Walk to', transit: 'Train to', driving: 'Taxi to' };
 function goButtons(q, name, primary = 'transit') {
@@ -610,6 +620,14 @@ function jumpToSpa() {
   det.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
   const sum = det.querySelector('summary');
   if (sum) sum.focus({ preventScroll: true });
+}
+
+function jumpToTravel() {
+  const el = document.getElementById('day-travel');
+  if (!el) return;
+  el.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
+  el.setAttribute('tabindex', '-1');
+  el.focus({ preventScroll: true });
 }
 
 function bookingReferenceDisclosure(b) {
@@ -1032,6 +1050,56 @@ function spaOptionsContent(d) {
     grouped(g.rows)));
 }
 
+function travelCard(c) {
+  const rows = [
+    kvStack('Station & entrance', c.station_entrance),
+    kvStack('Operator & line', c.operator_line),
+    kvStack('Destination & signage', c.signage),
+    kvStack('Transfers', c.transfers),
+    kvStack('Arrival exit & last mile', c.arrival_exit),
+    kvStack('Fare & tickets', c.fare_booking),
+    kvStack('Where a taxi saves walking', c.taxi_tip),
+    kvStack('Watch-out & when to use', c.caveat),
+  ].filter(Boolean);
+  const mapBtns = [
+    c.route_dest ? ext(routeDirUrl(c.route_origin, c.route_dest, c.route_mode || 'transit'),
+      [icon(MODE_ICON[c.route_mode || 'transit'] || 'train'), h('span', null, c.route_label || 'Route in Maps')],
+      { class: 'btn btn-tinted btn-small' }) : null,
+    c.alt_route_dest ? ext(routeDirUrl(c.alt_route_origin, c.alt_route_dest, c.alt_route_mode || 'driving'),
+      [icon(MODE_ICON[c.alt_route_mode || 'driving'] || 'car'), h('span', null, c.alt_route_label || 'Taxi option in Maps')],
+      { class: 'btn btn-gray btn-small' }) : null,
+  ].filter(Boolean);
+  const extLinks = (c.links || [])
+    .filter((lk) => lk && lk.url && lk.label)
+    .map((lk) => ext(lk.url, [icon('link'), h('span', null, lk.label)], { class: 'text-btn small' }));
+  const timeLine = [
+    c.door_to_door ? `Door-to-door: ${c.door_to_door}` : '',
+    c.in_vehicle ? `In-vehicle: ${c.in_vehicle}` : '',
+  ].filter(Boolean).join(' \u00b7 ');
+  return h('details', { class: `disclosure travel-card ${c.recommended ? 'is-recommended' : ''}`, open: c.open !== false },
+    h('summary', { class: 'travel-summary' },
+      h('span', { class: 'travel-summary-body' },
+        h('span', { class: 'travel-chips' },
+          c.stage ? chip(c.stage, 'plain', MODE_ICON[c.route_mode || 'transit'] || 'train') : null,
+          c.badge ? chip(c.badge, c.recommended ? 'ev ev-certified' : 'next') : null),
+        h('span', { class: 'travel-title' }, c.title),
+        timeLine ? h('span', { class: 'travel-times nums' }, timeLine) : null)),
+    h('div', { class: 'disclosure-pad travel-body' },
+      c.summary ? h('p', { class: 'body' }, c.summary) : null,
+      rows.length ? grouped(rows, 'kv-list travel-kv') : null,
+      mapBtns.length ? h('div', { class: 'travel-maps' }, ...mapBtns) : null,
+      extLinks.length ? h('div', { class: 'travel-links' }, ...extLinks) : null));
+}
+
+function travelCardsSection(d) {
+  const list = d.travel_cards || [];
+  if (!list.length) return null;
+  return h('section', { class: 'group', id: 'day-travel', 'aria-labelledby': 'day-travel-title' },
+    h('h2', { class: 'group-title', id: 'day-travel-title' }, 'Door-to-door travel'),
+    d.travel_intro ? h('p', { class: 'travel-intro' }, d.travel_intro) : null,
+    h('div', { class: 'travel-stack' }, list.map((c) => travelCard(c))));
+}
+
 function dayDetail(d, i) {
   const t = ctx.trip;
   const v = `days/${d.iso}`;
@@ -1113,8 +1181,14 @@ function dayDetail(d, i) {
           d.route_strategy ? h('details', { class: 'disclosure route-top-disc' },
             h('summary', null, h('span', { class: 'summary-label' }, 'Route & pacing')),
             h('div', { class: 'disclosure-pad strategy-card' }, h('p', { class: 'body' }, d.route_strategy))) : null,
+          d.travel_cards && d.travel_cards.length ? h('button', {
+            type: 'button',
+            class: 'flow-jump travel-top-jump',
+            onclick: () => jumpToTravel(),
+          }, icon('train'), h('span', null, `Door-to-door travel cards (${d.travel_cards.length})`), icon('chevronRight', null, 'chevron')) : null,
           itineraryOverview,
           d.zones.length ? h('div', { class: 'itinerary-stages' }, d.zones.map((z, zi) => zoneCard(d, z, zi, v, flowLabelsByZone.get(zi) || [], bookingsByZone.get(zi) || [], nn.now === zi))) : null),
+        travelCardsSection(d),
         section('End of the day', h('div', { class: 'card' },
           transferConfirmed.length ? h('div', { class: 'chips' }, transferConfirmed.map((b) =>
             chip(['Confirmed transfer', b.time, b.venue].filter(Boolean).join(' \u00b7 '), 'ev ev-certified', 'checkCircle'))) : null,
