@@ -53,7 +53,22 @@ const day2Zones = [
 ];
 const days = ['2030-05-07', '2030-05-08', '2030-05-09'].map((iso, i) => ({
   iso, date: ['Tue 7 May', 'Wed 8 May', 'Thu 9 May'][i], k: ['火', '水', '木'][i], n: String(7 + i), type: ['travel', 'shop', 'sight'][i], load: i + 1, wkd: false,
-  title: `Sample day ${i + 1}`, place: `Sample area ${i + 1}`, walk: 'Low', summary: `Summary for sample day ${i + 1}.`,
+  title: `Sample day ${i + 1}`,
+  theme: [`Sample arrival theme`, `Sample browse & optional wellness`, `Sample flex & arcade option`][i],
+  place: `Sample area ${i + 1}`,
+  walk: 'Low',
+  short_summary: `Short summary for sample day ${i + 1}.`,
+  core_plan: [
+    'Sample arrival transfer and hotel check-in.',
+    'Sample gallery browse and afternoon rest before fixed dinner.',
+    'Sample garden sunset walk and lunch pavilion.',
+  ][i],
+  tentative: [
+    ['Sample nearby station supper if hungry'],
+    ['Sample walk-in salon inquiry (unbooked; availability unconfirmed)'],
+    ['Sample covered arcade hop (unbooked; only if energy permits)'],
+  ][i],
+  summary: `Summary for sample day ${i + 1}.`,
   checked_on: '1 May 30',
   route_strategy: `Sample route strategy for day ${i + 1}.`,
   logistics: [{ label: 'Sample transit', value: `Sample transit detail ${i + 1}.` }],
