@@ -5,6 +5,7 @@ import {
   nowNext, zoneRange, resolveNow, tripPhase, allPlaces, foodCategories, halalByGroup, defaultHalalGroup, dayHalalGroups, zoneHalalGroup,
   walkCaption, dietKey, fill, searchPlaces, confirmedBookings, confirmedBookingsForDay, confirmedBookingForPlace,
   formatGuests, activeToBookItems, toBookCaption, activeDayOpen, activeDayDecisions, flowZoneIndex, flowBookingIndex,
+  dayTheme, dayCorePlan, dayTentativeChoices, dayForwardSummary,
   DEFAULT_TO_BOOK_NOTE, CONFIRMED_TO_BOOK_NOTE,
 } from '../docs/js/model.js';
 import { tokyoISO } from '../docs/js/trip.js';
@@ -183,4 +184,25 @@ test('itinerary flow-to-zone mapping and open decision resolution', () => {
   };
   assert.equal(activeDayOpen(resolvedOpenTrip, resolvedOpenTrip.days[1]), '');
   assert.deepEqual(activeDayDecisions(resolvedOpenTrip, resolvedOpenTrip.days[1]), ['Check train pass?']);
+});
+
+test('forward-planning summary surfaces core plan, tentative unbooked options and separate confirmed bookings', () => {
+  assert.equal(dayTheme(fixture.days[1]), 'Sample browse & optional wellness');
+  assert.equal(dayCorePlan(fixture.days[1]), 'Sample gallery browse and afternoon rest before fixed dinner.');
+  assert.deepEqual(dayTentativeChoices(fixture, fixture.days[1]), ['Sample walk-in salon inquiry (unbooked; availability unconfirmed)']);
+
+  const d1 = dayForwardSummary(fixture, fixture.days[0]);
+  assert.equal(d1.confirmed.length, 0);
+  assert.equal(d1.corePlan, 'Sample arrival transfer and hotel check-in.');
+
+  const d2 = dayForwardSummary(fixture, fixture.days[1]);
+  assert.equal(d2.confirmed.length, 1);
+  assert.equal(d2.confirmed[0].venue, 'Sample Tempura Counter');
+  assert.match(d2.tentative[0], /unbooked/i);
+
+  const d3 = dayForwardSummary(fixture, fixture.days[2]);
+  assert.equal(d3.theme, 'Sample flex & arcade option');
+  assert.match(d3.tentative[0], /arcade hop \(unbooked/i);
+  assert.equal(d3.confirmed.length, 1);
+  assert.equal(d3.confirmed[0].venue, 'Sample Kaiseki Pavilion');
 });

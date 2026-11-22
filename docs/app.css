@@ -286,6 +286,11 @@ body.just-unlocked .shell { animation: fade-in var(--dur-base) var(--ease-decele
 .legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: var(--space-4) 0 0; padding: 0 var(--space-5); list-style: none; color: var(--label-secondary); font-size: var(--fs-caption1); }
 .legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
 .days-list .row-chips { margin-top: var(--space-1); }
+.plan-line { display: block; margin-top: var(--space-1); color: var(--label-secondary); font-size: var(--fs-footnote); line-height: var(--lh-footnote); }
+.plan-line > strong { color: var(--label); font-weight: var(--fw-semibold); }
+.plan-confirmed > strong { color: var(--ev-certified-text); }
+.day-plan-brief { margin: var(--space-3) 0 var(--space-4); }
+.week-ahead-disc { margin-top: var(--space-3); }
 .day-strip { margin: var(--space-1) 0 var(--space-3); }
 .day-strip-scroll { overflow-x: auto; scrollbar-width: none; padding: var(--space-1) 0; }
 .day-strip-scroll::-webkit-scrollbar { display: none; }

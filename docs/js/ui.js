@@ -6,6 +6,7 @@ import {
   nowNext, allPlaces, foodCategories, halalPlaces, prayerRooms, defaultHalalGroup, dayHalalGroups, zoneHalalGroup, fill, searchPlaces, parseHM,
   confirmedBookings, confirmedBookingsForDay, confirmedBookingForPlace, bookingZoneIndex, formatGuests,
   activeToBookItems, toBookCaption, activeDayOpen, activeDayDecisions, flowZoneIndex, flowBookingIndex, normKey,
+  dayTheme, dayForwardSummary,
 } from './model.js';
 
 const TABS = [
@@ -758,6 +759,7 @@ function viewToday(r) {
       pendingNeeds.length ? section('To book', grouped(pendingNeeds.slice(0, 6).map(bookRow), 'book-list'), link('info/to-book', { class: 'text-btn' }, 'All bookings to make')) : null,
       docSection('next-up', 'Next up'),
       section('First day', tomorrowCard(day)),
+      section('Week overview', grouped(t.days.map(dayRow), 'days-list week-overview')),
       section('Before you go', grouped([pushRow('info/bookings', 'Bookings'), pushRow('info/getting-around', 'Getting around'), pushRow('info/shopping-and-tax-refunds', 'Tax-free shopping')])),
     ];
   } else if (ph.phase === 'after') {
@@ -772,10 +774,14 @@ function viewToday(r) {
     const focusZoneBookings = focus !== null && focus !== undefined ? dayConfirmed.filter((b) => bookingZoneIndex(day, b) === focus) : [];
     const nextZone = nn.now !== null && nn.now !== undefined ? day.zones[nn.now + 1] : null;
     const isAirportBoundary = ph.index === 0 || ph.index === t.days.length - 1;
-    const tomorrowSection = tomorrow ? section('Tomorrow', tomorrowCard(tomorrow)) : null;
+    const restOfWeek = t.days.slice(ph.index + 2);
+    const weekAheadDisclosure = restOfWeek.length ? h('details', { class: 'disclosure week-ahead-disc' },
+      h('summary', null, h('span', { class: 'summary-label' }, `Later this week (${restOfWeek.length} ${restOfWeek.length === 1 ? 'day' : 'days'})`)),
+      grouped(restOfWeek.map(dayRow), 'days-list week-overview')) : null;
+    const tomorrowSection = tomorrow ? section('Tomorrow', tomorrowCard(tomorrow), weekAheadDisclosure) : null;
     main = [
       h('div', { class: 'today-head' },
-        h('p', { class: 'eyebrow' }, `${day.date} \u00b7 Day ${ph.index + 1} of ${t.days.length}`),
+        h('p', { class: 'eyebrow' }, [day.date, `Day ${ph.index + 1} of ${t.days.length}`, dayTheme(day)].filter(Boolean).join(' \u00b7 ')),
         h('p', { class: 'today-title' }, day.title),
         h('p', { class: 'day-place' }, day.place)),
       focus !== null && focus !== undefined ? zoneNowCard(day, day.zones[focus], nn.now === focus ? 'Now' : 'Next', focus, nextZone, focusZoneBookings)
@@ -853,22 +859,25 @@ function quickActions(day, focusZoneIdx = null) {
 
 function tomorrowCard(d) {
   const t = ctx.trip;
-  const conf = confirmedBookingsForDay(t, d.iso);
+  const fp = dayForwardSummary(t, d);
   const openText = activeDayOpen(t, d);
   const z0 = d.zones?.[0];
   const topWatch = d.watch_outs?.[0] || '';
   return link(`days/${d.iso}`, { class: 'day-card tomorrow-card', 'data-key': `card-${d.iso}` },
     h('span', { class: 'day-badge' }, h('span', { class: 'day-num' }, d.n), h('span', { class: 'day-k', lang: 'ja' }, d.k)),
     h('span', { class: 'row-text' },
-      h('span', { class: 'row-sub' }, d.date),
-      h('span', { class: 'row-title' }, d.title),
-      h('span', { class: 'row-sub' }, d.place),
+      h('span', { class: 'row-sub' }, [fp.date, d.wkd ? 'Weekend' : '', fp.theme].filter(Boolean).join(' \u00b7 ')),
+      h('span', { class: 'row-title' }, fp.title),
+      h('span', { class: 'row-sub' }, fp.area),
       z0 ? h('span', { class: 'row-facts' }, `Starts: ${z0.time} \u00b7 ${z0.name}`) : null,
+      fp.corePlan ? h('span', { class: 'row-facts plan-line plan-core' }, h('strong', null, 'Core plan: '), fp.corePlan) : null,
+      fp.tentative.length ? h('span', { class: 'row-facts plan-line plan-tentative' }, h('strong', null, 'Tentative / optional: '), fp.tentative.join(' \u00b7 ')) : null,
+      fp.confirmed.length ? h('span', { class: 'row-facts plan-line plan-confirmed' }, h('strong', null, 'Confirmed: '), fp.confirmed.map((b) => [b.time, b.venue].filter(Boolean).join(' \u00b7 ')).join('; ')) : null,
       h('span', { class: 'row-chips' },
         typeChip(d.type),
         chip(LOAD[d.load], 'plain'),
         d.walk ? chip(`Walking: ${d.walk}`, 'plain', 'figureWalk') : null,
-        ...conf.map((b) => chip(['Confirmed', b.time, b.venue].filter(Boolean).join(' \u00b7 '), 'ev ev-certified', 'checkCircle')),
+        ...fp.confirmed.map((b) => chip(['Confirmed', b.time, b.venue].filter(Boolean).join(' \u00b7 '), 'ev ev-certified', 'checkCircle')),
         openText ? chip('To decide', 'decide', 'question') : null,
         d.type === 'shop' ? chip('Carry physical passports', 'plain') : null),
       topWatch ? h('span', { class: 'row-meta clamp' }, topWatch) : null),
@@ -880,19 +889,22 @@ function t0(d) { const t = ctx.trip; return t.days[tripPhase(t.days, now().iso).
 function dayRow(d) {
   const today = now().iso === d.iso;
   const r = route();
-  const dayConf = confirmedBookingsForDay(ctx.trip, d.iso);
+  const fp = dayForwardSummary(ctx.trip, d);
   const openText = activeDayOpen(ctx.trip, d);
   return h('li', { class: `row day-row ${today ? 'is-today' : ''}` },
     link(`days/${d.iso}`, { class: 'row-link', 'aria-current': r.tab === 'days' && (r.sub[0] || (!isCompact() && t0(d))) === d.iso ? 'page' : null, 'data-key': `day-${d.iso}` },
       h('span', { class: 'day-badge' }, h('span', { class: 'day-num' }, d.n), h('span', { class: 'day-k', lang: 'ja' }, d.k)),
       h('span', { class: 'row-text' },
-        h('span', { class: 'row-sub' }, [d.date, d.wkd ? 'Weekend' : '', today ? 'Today' : ''].filter(Boolean).join(' \u00b7 ')),
-        h('span', { class: 'row-title' }, d.title),
-        h('span', { class: 'row-sub' }, d.place),
+        h('span', { class: 'row-sub' }, [fp.date, d.wkd ? 'Weekend' : '', fp.theme, today ? 'Today' : ''].filter(Boolean).join(' \u00b7 ')),
+        h('span', { class: 'row-title' }, fp.title),
+        h('span', { class: 'row-sub' }, fp.area),
+        fp.corePlan ? h('span', { class: 'row-facts plan-line plan-core' }, h('strong', null, 'Core: '), fp.corePlan) : null,
+        fp.tentative.length ? h('span', { class: 'row-facts plan-line plan-tentative' }, h('strong', null, 'Optional: '), fp.tentative.join(' \u00b7 ')) : null,
+        fp.confirmed.length ? h('span', { class: 'row-facts plan-line plan-confirmed' }, h('strong', null, 'Confirmed: '), fp.confirmed.map((b) => [b.time, b.venue].filter(Boolean).join(' \u00b7 ')).join('; ')) : null,
         h('span', { class: 'row-chips' },
           typeChip(d.type),
           chip(LOAD[d.load], 'plain'),
-          dayConf.length ? chip(dayConf.length > 1 ? `${dayConf.length} confirmed` : 'Confirmed', 'ev ev-certified', 'checkCircle') : null,
+          fp.confirmed.length ? chip(fp.confirmed.length > 1 ? `${fp.confirmed.length} confirmed` : 'Confirmed', 'ev ev-certified', 'checkCircle') : null,
           openText ? chip('To decide', 'decide', 'question') : null)),
       icon('chevronRight', null, 'chevron')));
 }
@@ -1134,11 +1146,12 @@ function dayDetail(d, i) {
       flowLabelsByZone.get(zi).push(f.when);
     }
   });
+  const fp = dayForwardSummary(t, d);
   const header = h('header', { class: 'day-head', tabindex: '0', 'aria-label': `${d.date}, ${d.title}. Use left and right arrow keys for other days.`, onkeydown: (e) => {
     const nd = e.key === 'ArrowLeft' ? t.days[i - 1] : e.key === 'ArrowRight' ? t.days[i + 1] : null;
     if (nd) { e.preventDefault(); lastFocus = 'day-head'; go(`days/${nd.iso}`); }
   }, 'data-key': 'day-head' },
-  h('p', { class: 'eyebrow' }, `Day ${i + 1} of ${t.days.length}${d.wkd ? ' \u00b7 Weekend' : ''}`),
+  h('p', { class: 'eyebrow' }, [`Day ${i + 1} of ${t.days.length}`, d.wkd ? 'Weekend' : '', fp.theme].filter(Boolean).join(' \u00b7 ')),
   h('h1', { class: 'day-title', id: 'view-title', 'aria-live': 'polite' }, d.title),
   h('p', { class: 'day-place' }, `${d.date} \u00b7 ${d.place}`),
   h('div', { class: 'chips' },
@@ -1146,6 +1159,10 @@ function dayDetail(d, i) {
     typeChip(d.type),
     chip(LOAD[d.load], 'plain'),
     d.walk ? chip(`Walking: ${d.walk}`, 'plain', 'figureWalk') : null));
+  const planBrief = (d.core_plan || fp.tentative.length) ? grouped([
+    d.core_plan ? kvStack('Core plan', fp.corePlan) : null,
+    fp.tentative.length ? kvStack('Tentative & optional (unbooked)', fp.tentative.join(' \u00b7 ')) : null,
+  ], 'kv-list day-plan-brief') : null;
   const itineraryOverview = d.flow && d.flow.length ? h('ol', { class: 'flow itinerary-overview' }, d.flow.map((f, fi) => {
     const zi = flowZoneIndex(d, f);
     const z = zi >= 0 ? d.zones[zi] : null;
@@ -1171,6 +1188,7 @@ function dayDetail(d, i) {
     isAirportBoundary ? documentShortcut() : null,
     header,
     h('p', { class: 'body lead' }, d.summary),
+    planBrief,
     dayAreaBar(d),
     dayConfirmed.length ? section('Confirmed', h('div', { class: 'bookings-stack' }, dayConfirmed.map((b) => confirmedBookingCard(b, { day: d, v })))) : null,
     notBookedNote(d.iso),

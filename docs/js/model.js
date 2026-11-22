@@ -453,3 +453,44 @@ export function flowBookingIndex(day, booking) {
   }
   return -1;
 }
+
+export function dayTheme(day) {
+  if (!day) return '';
+  return (typeof day.theme === 'string' && day.theme.trim()) || DAY_TYPE[day.type] || '';
+}
+
+export function dayCorePlan(day) {
+  if (!day) return '';
+  return (typeof day.core_plan === 'string' && day.core_plan.trim())
+    || (typeof day.short_summary === 'string' && day.short_summary.trim())
+    || day.zones?.[0]?.purpose
+    || day.summary
+    || '';
+}
+
+export function dayTentativeChoices(trip, day) {
+  if (!day) return [];
+  if (Array.isArray(day.tentative)) {
+    const list = day.tentative.map((x) => String(x || '').trim()).filter(Boolean);
+    if (list.length) return list;
+  } else if (typeof day.tentative === 'string' && day.tentative.trim()) {
+    return [day.tentative.trim()];
+  }
+  const open = activeDayOpen(trip, day);
+  return open ? [open] : [];
+}
+
+export function dayForwardSummary(trip, day) {
+  if (!day) return null;
+  return {
+    iso: day.iso,
+    date: day.date || '',
+    title: day.title || '',
+    theme: dayTheme(day),
+    area: day.place || '',
+    shortSummary: (typeof day.short_summary === 'string' && day.short_summary.trim()) || day.summary || '',
+    corePlan: dayCorePlan(day),
+    tentative: dayTentativeChoices(trip, day),
+    confirmed: confirmedBookingsForDay(trip, day.iso),
+  };
+}

@@ -604,3 +604,32 @@ test('door-to-door travel cards render leg details, 44pt route buttons, Maps pre
   await page.goto(url('days/2030-05-08'));
   await expect(sec.getByRole('link', { name: 'Sample rail map' })).toHaveAttribute('href', /maps\.apple\.com\/\?saddr=Sample%20Hotel%20Osaka&daddr=Sample%20Park%20Station&dirflg=r/);
 });
+
+test('week overview and Tomorrow preview surface core plan, unbooked tentative choices and separate confirmed bookings', async ({ page }) => {
+  await unlock(page);
+
+  // Pre-trip Today Week overview separates core plan, optional unbooked choices and confirmed bookings
+  await page.goto(url('today', 'asof=2030-05-03'));
+  const preOverview = page.locator('.week-overview');
+  await expect(preOverview.locator('.day-row')).toHaveCount(3);
+  await expect(preOverview).toContainText('Core: Sample gallery browse and afternoon rest before fixed dinner.');
+  await expect(preOverview).toContainText('Optional: Sample walk-in salon inquiry (unbooked; availability unconfirmed)');
+  await expect(preOverview).toContainText('Confirmed: 18:00 · Sample Tempura Counter');
+  await expect(preOverview).toContainText('Optional: Sample covered arcade hop (unbooked; only if energy permits)');
+
+  // During-trip Day 1 evening: Tomorrow card previews Day 2 with distinct Core plan, Tentative / optional, and Confirmed lines
+  await page.goto(url('today', 'asof=2030-05-07T19:00'));
+  const tmr = page.locator('.tomorrow-card');
+  await expect(tmr).toContainText('Wed 8 May · Sample browse & optional wellness');
+  await expect(tmr).toContainText('Core plan: Sample gallery browse and afternoon rest before fixed dinner.');
+  await expect(tmr).toContainText('Tentative / optional: Sample walk-in salon inquiry (unbooked; availability unconfirmed)');
+  await expect(tmr).toContainText('Confirmed: 18:00 · Sample Tempura Counter');
+
+  // Days overview list mirrors the same hierarchy
+  await page.goto(url('days'));
+  const daysList = page.locator('.days-list').first();
+  await expect(daysList).toContainText('Sample flex & arcade option');
+  await expect(daysList).toContainText('Core: Sample garden sunset walk and lunch pavilion.');
+  await expect(daysList).toContainText('Optional: Sample covered arcade hop (unbooked; only if energy permits)');
+  await expect(daysList).toContainText('Confirmed: 12:30 · Sample Kaiseki Pavilion');
+});
