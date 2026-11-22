@@ -60,6 +60,12 @@ test('halal ordering, default group and walk captions', () => {
   assert.deepEqual(dayHalalGroups(fixture, '2031-01-01'), ['umeda']);
   assert.equal(zoneHalalGroup(fixture, fixture.days[1], 0), 'umeda');
   assert.equal(zoneHalalGroup(fixture, fixture.days[1], 1), 'nara');
+  const viaZoneGroupsMap = {
+    ...fixture,
+    days: fixture.days.map((d, i) => (i === 0 ? { ...d, zones: d.zones.map((z) => ({ ...z, halal_group: undefined })) } : d)),
+    halal: { ...fixture.halal, zoneGroups: { '2030-05-07': ['umeda', 'nara'] } },
+  };
+  assert.equal(zoneHalalGroup(viaZoneGroupsMap, viaZoneGroupsMap.days[0], 1), 'nara');
   assert.match(walkCaption(list[0]), /6 min/);
   assert.equal(walkCaption(list[1]), ''); // 0 means unknown
   assert.equal(walkCaption(fixture.halal.places[2]), ''); // not from the hotel outside Osaka
