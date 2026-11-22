@@ -32,12 +32,50 @@ export function randomBytes(n) {
   return crypto.getRandomValues(new Uint8Array(n));
 }
 
+// Extracts a valid 43-char base64url (32-byte) link secret token from a fragment, URL, or pasted message.
+export function extractLinkParam(input, { allowBare = true } = {}) {
+  const s = String(input || '').trim();
+  if (!s) return null;
+  const m = /(?:^|[#?&])k=([A-Za-z0-9_-]{43})(?![A-Za-z0-9_-])/.exec(s)
+    || (allowBare && /^[A-Za-z0-9_-]{43}$/.test(s) ? [s, s] : null);
+  if (!m) return null;
+  try {
+    return b64uDecode(m[1]).length === 32 ? m[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+// Distinguishes a complete link secret from a truncated #k= parameter or a stripped fragment without exposing values.
+export function classifyLinkInput(input) {
+  if (extractLinkParam(input)) return 'valid';
+  const s = String(input || '').trim();
+  if (/(?:^|[#?&])k=[A-Za-z0-9_-]{1,80}/i.test(s) || (s.startsWith('#') && s.length > 1 && !s.includes('='))) return 'truncated';
+  return 'missing';
+}
+
 // Reads the link secret from a URL fragment such as "#k=<43 base64url chars>".
 export function linkSecretFromHash(hash) {
-  const m = /(?:^#|&)k=([A-Za-z0-9_-]{43})(?:&|$)/.exec(hash || '');
-  if (!m) return null;
-  const bytes = b64uDecode(m[1]);
-  return bytes.length === 32 ? bytes : null;
+  const token = extractLinkParam(hash, { allowBare: false });
+  return token ? b64uDecode(token) : null;
+}
+
+// Bounded local password candidates to recover from accidental mobile paste whitespace or leading auto-capitalization
+// without altering the stored key, ciphertext, or 2-factor requirement.
+export function passwordCandidates(rawPassword) {
+  const raw = String(rawPassword ?? '');
+  if (!raw) return [];
+  const out = [raw];
+  const push = (v) => { if (v && !out.includes(v)) out.push(v); };
+  const trimmed = raw.trim();
+  push(trimmed);
+  const base = trimmed || raw;
+  if (base.length > 1 && base === base.toUpperCase() && base !== base.toLowerCase()) {
+    push(base.toLowerCase());
+  } else if (base.length > 0 && base[0] !== base[0].toLowerCase()) {
+    push(base[0].toLowerCase() + base.slice(1));
+  }
+  return out;
 }
 
 export async function deriveKey(password, linkSecret, salt, iterations, extractable = false) {

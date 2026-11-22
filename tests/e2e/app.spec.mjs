@@ -74,6 +74,59 @@ test.describe('lock screen', () => {
     await page.reload();
     await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
   });
+
+  test('fresh-device sign-in: truncated link diagnosis, chat-wrapped paste, password recovery, paste whitespace/auto-cap and failed fetch retry', async ({ browser }) => {
+    // 1. Truncated #k= fragment on initial open diagnoses cut-off invite and accepts a chat-wrapped link
+    const ctx1 = await browser.newContext();
+    const p1 = await ctx1.newPage();
+    await p1.goto('/#k=short');
+    await expect(p1.locator('#lock-status')).toContainText('every character after #k=');
+    await p1.getByLabel('Private trip link').fill(`Here is the invite: https://osaka.example/${TEST_HASH} see you soon!`);
+    await p1.getByRole('button', { name: 'Continue' }).click();
+    const pw = p1.getByLabel('Password', { exact: true });
+    await expect(pw).toBeVisible();
+    await expect(pw).toHaveAttribute('autocapitalize', 'off');
+    await expect(pw).toHaveAttribute('autocorrect', 'off');
+    const pwFontPx = await pw.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(pwFontPx).toBeGreaterThanOrEqual(16);
+
+    // 2. Password screen offers Replace or paste invite link recovery and Back to password
+    await p1.getByRole('button', { name: 'Replace or paste invite link' }).click();
+    await expect(p1.getByLabel('Private trip link')).toBeVisible();
+    await p1.getByRole('button', { name: 'Back to password' }).click();
+    await expect(pw).toBeVisible();
+
+    // 3. Valid password with accidental paste whitespace and leading mobile auto-capitalization unlocks cleanly
+    const autoCapSpaced = `  ${TEST_PASSWORD[0].toUpperCase()}${TEST_PASSWORD.slice(1)}\n`;
+    await pw.fill(autoCapSpaced);
+    await p1.getByRole('button', { name: 'Unlock' }).click();
+    await expect(p1.locator('#view-title')).toHaveText('Today');
+    const hint = p1.getByRole('dialog', { name: 'Add to Home Screen' });
+    if (await hint.isVisible().catch(() => false)) await hint.getByRole('button', { name: 'Got It' }).click();
+
+    // Info > App exposes Copy invite link without displaying the raw secret in visible text
+    await p1.goto(url('info/app'));
+    await expect(p1.getByText('Complete private link active')).toBeVisible();
+    await expect(p1.getByRole('button', { name: 'Copy private invite link to clipboard' })).toBeVisible();
+    const bodyText = await p1.locator('body').innerText();
+    expect(bodyText).not.toContain(TEST_HASH.slice(3));
+    await ctx1.close();
+
+    // 4. Transient failed fetch while online distinguishes load failure from offline and recovers via Try Again
+    const ctx2 = await browser.newContext();
+    const p2 = await ctx2.newPage();
+    let failOnce = true;
+    await p2.route('**/data/trip.enc.json', async (routeReq) => {
+      if (failOnce) { failOnce = false; await routeReq.abort('failed'); }
+      else await routeReq.continue();
+    });
+    await p2.goto(url());
+    await expect(p2.getByText('Couldn’t load the encrypted trip right now')).toBeVisible();
+    await p2.getByRole('button', { name: 'Try Again' }).click();
+    await expect(p2.getByLabel('Password', { exact: true })).toBeVisible();
+    expect(p2.url()).toContain(TEST_HASH.split('&')[0]);
+    await ctx2.close();
+  });
 });
 
 test.describe('unlocked app', () => {
@@ -84,7 +137,10 @@ test.describe('unlocked app', () => {
     await expect(page.locator('.now-card')).toContainText('Sample Zone A1');
     await expect(page.locator('.now-card .chip.now')).toHaveText('Now');
     await expect(page.locator('.now-card')).toContainText('Shorter walk: Sample flat lift-connected route ba.');
-    await expect(page.locator('.now-next-box')).toContainText('Sample Nara Zone B1');
+    const todayFromHere = page.locator('.now-card').getByRole('link', { name: /Directions from here/ });
+    await expect(todayFromHere).toHaveAttribute('href', /google\.com\/maps\/dir\/\?api=1&destination=Sample%20Station%20Osaka/);
+    expect(await todayFromHere.getAttribute('href')).not.toContain('origin=');
+    await expect(page.locator('.now-next-box')).toContainText('Sample Zone B1');
     const confirmedCard = page.locator('.booking-card').first();
     await expect(confirmedCard.locator('.chip.ev-certified')).toHaveText('Confirmed');
     await expect(confirmedCard).toContainText('18:00');
@@ -363,7 +419,8 @@ test.describe('unlocked app', () => {
       if (await refDisclosure.count()) await refDisclosure.click();
       const altDisclosure = page.locator('summary', { hasText: 'Optional dinner alternatives' }).first();
       if (await altDisclosure.count()) await altDisclosure.click();
-      const small = await page.evaluate(() => [...document.querySelectorAll('.tab, .top-tab, .icon-btn, .btn, .row-link, .row-go, .filter-chip, .segmented button, .quick-btn, .rhythm-day a, .day-pill, .area-link, .disclosure > summary, .spa-item .text-btn, .flow-jump, .booking-links .text-btn, .booking-ext .text-btn')]
+      await page.evaluate(() => { for (const d of document.querySelectorAll('#day-travel details')) d.open = true; });
+      const small = await page.evaluate(() => [...document.querySelectorAll('.tab, .top-tab, .icon-btn, .btn, .row-link, .row-go, .filter-chip, .segmented button, .quick-btn, .rhythm-day a, .day-pill, .area-link, .disclosure > summary, .spa-item .text-btn, .flow-jump, .booking-links .text-btn, .booking-ext .text-btn, .travel-links .text-btn')]
         .filter((el) => el.offsetParent !== null)
         .map((el) => { const r = el.getBoundingClientRect(); return { c: el.className, w: Math.round(r.width), h: Math.round(r.height) }; })
         .filter((r) => r.w < 44 || r.h < 44));
@@ -584,25 +641,81 @@ test('to book: scoped suppression, updated confirmation caption and device-only 
   await expect(page.getByRole('checkbox', { name: /Sample airport transfer in/ })).not.toBeChecked();
 });
 
-test('door-to-door travel cards render leg details, 44pt route buttons, Maps preference and official links', async ({ page }) => {
+test('door-to-door travel cards separate Directions from here vs Point-to-point, render ordered steps, inline train booking, taxi last mile and Maps preferences', async ({ page }) => {
   await unlock(page);
   await page.goto(url('days/2030-05-08'));
+
+  // Day detail surfaces one primary next-step card with Directions from here (no origin) and at most one .btn-filled
+  const nextStep = page.locator('.next-step-card');
+  await expect(nextStep).toBeVisible();
+  const topFromHere = nextStep.getByRole('link', { name: /Directions from here/ });
+  await expect(topFromHere).toHaveAttribute('href', /google\.com\/maps\/dir\/\?api=1&destination=/);
+  expect(await topFromHere.getAttribute('href')).not.toContain('origin=');
+  expect(await page.locator('.btn-filled:visible').count()).toBeLessThanOrEqual(1);
+
   const sec = page.locator('#day-travel');
   await expect(sec).toContainText('Door-to-door travel');
-  await expect(sec).toContainText('Door-to-door: ~60 to 70 min · In-vehicle: ~38 min combined');
-  const transitBtn = sec.getByRole('link', { name: 'Sample rail map' });
-  await expect(transitBtn).toHaveAttribute('href', /google\.com\/maps\/dir\/.*origin=Sample%20Hotel%20Osaka.*destination=Sample%20Park%20Station.*travelmode=transit/);
-  const taxiBtn = sec.getByRole('link', { name: 'Sample taxi map' });
-  await expect(taxiBtn).toHaveAttribute('href', /google\.com\/maps\/dir\/.*origin=Sample%20Park%20Station.*destination=Sample%20Upper%20Sanctuary.*travelmode=driving/);
-  for (const el of [transitBtn, taxiBtn, sec.getByRole('link', { name: 'Sample timetable' }), sec.getByRole('link', { name: 'Sample seat portal' })]) {
+  const primaryCard = sec.locator('.travel-card.is-recommended').first();
+  const variantCard = sec.locator('.travel-card.is-variant').first();
+  await expect(primaryCard).toHaveAttribute('open', '');
+  await expect(variantCard).not.toHaveAttribute('open', '');
+  await expect(primaryCard).toContainText('Door-to-door: ~60 to 70 min · In-vehicle: ~38 min combined');
+
+  // Separate random-street Directions from here vs exact named Point-to-point
+  const cardFromHere = primaryCard.getByRole('link', { name: 'Directions from here to Sample Park Station' });
+  const cardHref = await cardFromHere.getAttribute('href');
+  expect(cardHref).toMatch(/google\.com\/maps\/dir\/\?api=1&destination=Sample%20Park%20Station&travelmode=transit/);
+  expect(cardHref).not.toContain('origin=');
+  const p2pBtn = primaryCard.getByRole('link', { name: 'Point-to-point route from Sample Hotel Osaka to Sample Park Station' });
+  await expect(p2pBtn).toHaveAttribute('href', /google\.com\/maps\/dir\/\?api=1&origin=Sample%20Hotel%20Osaka&destination=Sample%20Park%20Station&travelmode=transit/);
+
+  // Ordered steps + inline Japanese lang="ja" + inline bookable train link with reserved-vs-IC note
+  await expect(primaryCard.locator('.route-step')).toHaveCount(4);
+  await expect(primaryCard.locator('.route-step [lang="ja"]')).toContainText('サンプル特急');
+  const bookBtn = primaryCard.getByRole('link', { name: 'Sample reserve seat (+520 JPY)' });
+  await expect(bookBtn).toHaveAttribute('href', 'https://example.com/booking');
+  await expect(primaryCard.locator('.step-ticket-note')).toContainText('Sample +520 JPY seat supplement online · 680 JPY base fare via IC tap.');
+
+  // Concise taxi alternative with Pickup map, Drop-off map, copyable Japanese, Driver screen and fallback
+  const taxiBox = primaryCard.locator('.taxi-alt-box');
+  const pickupBtn = taxiBox.getByRole('link', { name: 'Pickup map: Sample Park East Stand' });
+  const dropBtn = taxiBox.getByRole('link', { name: 'Drop-off map: Sample Upper Sanctuary' });
+  await expect(pickupBtn).toHaveAttribute('href', /destination=Sample%20Park%20Station&travelmode=walking/);
+  await expect(dropBtn).toHaveAttribute('href', /destination=Sample%20Upper%20Sanctuary&travelmode=driving/);
+  await expect(taxiBox.locator('.taxi-inline-jp[lang="ja"]')).toHaveText('サンプル神社本殿');
+  await expect(taxiBox.getByRole('button', { name: /Copy Japanese destination/ })).toBeVisible();
+  await expect(taxiBox).toContainText('Sample fallback: copy Japanese text or show Driver screen at the stand.');
+  await taxiBox.getByRole('link', { name: 'Driver screen' }).click();
+  const drvDialog = page.getByRole('dialog', { name: 'Driver card: Sample Upper Sanctuary' });
+  await expect(drvDialog).toContainText('サンプル神社本殿');
+  await expect(drvDialog).toContainText('Pickup: Sample Park East Stand');
+  await drvDialog.getByRole('button', { name: 'Close' }).click();
+  await expect(drvDialog).toHaveCount(0);
+
+  // Secondary fares, watch-outs & operator links stay collapsed until expanded
+  const moreDisc = primaryCard.locator('details.travel-more');
+  await expect(moreDisc).not.toHaveAttribute('open', '');
+  await moreDisc.locator('summary').click();
+  await expect(moreDisc).toHaveAttribute('open', '');
+  const timetableLink = moreDisc.getByRole('link', { name: 'Sample timetable' });
+  await expect(timetableLink).toBeVisible();
+
+  for (const el of [cardFromHere, p2pBtn, bookBtn, pickupBtn, dropBtn, timetableLink]) {
     const box = await el.boundingBox();
     expect(Math.round(box.height)).toBeGreaterThanOrEqual(44);
     expect(Math.round(box.width)).toBeGreaterThanOrEqual(44);
   }
+
+  // Apple Maps preference switches primary Directions from here AND keeps Google Maps from here readily available
   await page.goto(url('info/app'));
   await page.getByLabel('Open places in').selectOption('apple');
   await page.goto(url('days/2030-05-08'));
-  await expect(sec.getByRole('link', { name: 'Sample rail map' })).toHaveAttribute('href', /maps\.apple\.com\/\?saddr=Sample%20Hotel%20Osaka&daddr=Sample%20Park%20Station&dirflg=r/);
+  const appleFromHere = primaryCard.getByRole('link', { name: 'Directions from here to Sample Park Station' });
+  expect(await appleFromHere.getAttribute('href')).toBe('https://maps.apple.com/?daddr=Sample%20Park%20Station&dirflg=r');
+  await expect(primaryCard.getByRole('link', { name: 'Google Maps from here to Sample Park Station' }))
+    .toHaveAttribute('href', 'https://www.google.com/maps/dir/?api=1&destination=Sample%20Park%20Station&travelmode=transit');
+  await expect(primaryCard.getByRole('link', { name: 'Point-to-point route from Sample Hotel Osaka to Sample Park Station' }))
+    .toHaveAttribute('href', 'https://maps.apple.com/?saddr=Sample%20Hotel%20Osaka&daddr=Sample%20Park%20Station&dirflg=r');
 });
 
 test('week overview and Tomorrow preview surface core plan, unbooked tentative choices and separate confirmed bookings', async ({ page }) => {

@@ -17,10 +17,34 @@ export function h(tag, attrs, ...children) {
   return el;
 }
 
+const JA_RE = /[\u3040-\u30FF\u4E00-\u9FFF]/;
+const JA_SPLIT = /([\u3040-\u30FF\u4E00-\u9FFF][\u3000-\u30FF\u4E00-\u9FFF\uFF00-\uFFEF0-9・ー\s]*[\u3040-\u30FF\u4E00-\u9FFF]|[\u3040-\u30FF\u4E00-\u9FFF])/g;
+const TEXT_ONLY_TAGS = new Set(['OPTION', 'TEXTAREA', 'TITLE', 'STYLE', 'SCRIPT']);
+
 function append(el, children) {
+  const skipJa = el.getAttribute?.('lang') === 'ja' || TEXT_ONLY_TAGS.has(el.tagName);
   for (const c of children.flat(Infinity)) {
     if (c === null || c === undefined || c === false || c === '') continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    if (c instanceof Node) {
+      el.append(c);
+    } else {
+      const s = String(c);
+      if (!skipJa && JA_RE.test(s)) {
+        for (const [idx, part] of s.split(JA_SPLIT).entries()) {
+          if (!part) continue;
+          if (idx % 2 === 1) {
+            const sp = document.createElement('span');
+            sp.setAttribute('lang', 'ja');
+            sp.textContent = part;
+            el.append(sp);
+          } else {
+            el.append(document.createTextNode(part));
+          }
+        }
+      } else {
+        el.append(document.createTextNode(s));
+      }
+    }
   }
 }
 
@@ -48,7 +72,7 @@ const SPRITE = {
   wifiSlash: 'wifi-slash', seal: 'checkmark-seal', checkCircle: 'checkmark-circle', xmarkCircle: 'xmark-circle',
   listRect: 'list-rect', hand: 'hand-raised', fish: 'fish', bag: 'bag', columns: 'building-columns',
   leaf: 'leaf', airplane: 'airplane', question: 'question-circle', arrowOut: 'directions', phone: 'phone',
-  plusApp: 'plus-app', dot: 'checkmark-circle', clock: 'clock', yen: 'yen', share: 'share',
+  plusApp: 'plus-app', dot: 'checkmark-circle', clock: 'clock', yen: 'yen', share: 'share', copy: 'copy',
 };
 
 export function icon(name, label, cls = '') {
