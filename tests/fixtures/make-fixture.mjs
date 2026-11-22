@@ -14,6 +14,9 @@ const L = ['a', 'b', 'c'];
 const day2Zones = [
   {
     ...zone('Sample Zone A1', '9:00 to 12:30', 'ba'),
+    short_route: 'Sample flat lift-connected route ba.',
+    seating: 'Sample 9F book cafe seating ba.',
+    optional_extension: 'Sample backstreet coffee loop ba.',
     eat: [
       item('Sample Halal Diner ba', { for_b: 'Halal certified', price: '¥1,500', booking: 'Not needed' }),
       item('Sample Fish Bar ba', { for_b: 'Fish, prawn or veg options', price: '¥2,000', booking: 'Book 2 days ahead' }),
@@ -22,7 +25,7 @@ const day2Zones = [
     ],
   },
   {
-    ...zone('Sample Zone B1', '13:30 to 17:00', 'bb'),
+    ...zone('Sample Nara Zone B1', '13:30 to 17:00', 'bb'),
     eat: [
       item('Sample Halal Diner bb', { for_b: 'Halal certified', price: '¥1,500', booking: 'Not needed' }),
       item('Sample Fish Bar bb', { for_b: 'Fish, prawn or veg options', price: '¥2,200' }),
@@ -59,16 +62,22 @@ const days = ['2030-05-07', '2030-05-08', '2030-05-09'].map((iso, i) => ({
     open: 'Sample open decision',
     spa_intro: 'Sample spa intro for day 2.',
     spa_options: [{
+      zone_group: 'Sample District walk-in inquiries',
       name: 'Sample Day Spa',
+      jp: 'サンプルスパ',
+      address_jp: '大阪市北区サンプル2-1',
       area: 'Sample District (~5 min walk estimate)',
       privacy: 'Private rooms · Confirm therapist',
       checked_on: '1 May 30',
+      availability: 'Walk-in inquiry only · Same-day availability unconfirmed',
       hours: '10:00 to 21:00 daily',
       price: 'Facial 60 min ¥10,000; Massage 60 min ¥10,000',
       attendance: 'Both can attend in private rooms.',
       booking: 'Book online 24h ahead',
       why: 'Sample confirmed spa feature.',
       caveat: 'Sample unknown to confirm in writing.',
+      inquiry_label: 'Sample reception inquiry note',
+      inquiry_jp: '本日空きはありますか？',
       source: 'https://example.com/spa',
       booking_url: 'https://example.com/spa',
       maps_query: 'Sample Day Spa Osaka',
