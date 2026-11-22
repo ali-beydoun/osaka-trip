@@ -746,3 +746,60 @@ test('week overview and Tomorrow preview surface core plan, unbooked tentative c
   await expect(daysList).toContainText('Optional: Sample covered arcade hop (unbooked; only if energy permits)');
   await expect(daysList).toContainText('Confirmed: 12:30 · Sample Kaiseki Pavilion');
 });
+
+test('whole-app scan pass: place detail top actions, confirmed-card Directions from here, Halal quick bar, Places clear search and Info curbside card', async ({ page }) => {
+  await unlock(page);
+
+  // 1. Confirmed booking card surfaces Directions from here + Copy Japanese upfront
+  const todayBk = page.locator('.booking-card').first();
+  await expect(todayBk.getByRole('link', { name: 'Directions from here to Sample Tempura Counter' }))
+    .toHaveAttribute('href', /destination=Sample%20Tempura%20Counter%20Osaka&travelmode=walking/);
+  await expect(todayBk.getByRole('button', { name: 'Copy Japanese name for Sample Tempura Counter' })).toBeVisible();
+
+  // 2. Day detail zone collapses Optional loop while Place detail puts Directions from here at top and verification in disclosure
+  await page.goto(url('days/2030-05-08'));
+  const extDisc = page.locator('section.zone').first().locator('details.zone-ext-disc');
+  await expect(extDisc).not.toHaveAttribute('open', '');
+  await extDisc.locator('summary').click();
+  await expect(extDisc).toContainText('Sample backstreet coffee loop ba.');
+
+  await page.locator('.row-link', { hasText: 'Sample Garden ba' }).click();
+  const detail = page.locator('.sheet, .inspector').filter({ hasText: 'Sample Garden ba' });
+  await expect(detail.getByRole('link', { name: 'Directions from here to Sample Garden ba' }))
+    .toHaveAttribute('href', /destination=Sample%20Garden%20ba%20Osaka&travelmode=walking/);
+  const placeMore = detail.locator('details.place-more');
+  await expect(placeMore).not.toHaveAttribute('open', '');
+  await placeMore.locator('summary').click();
+  await expect(placeMore).toContainText('Primary source checked 1 May 30');
+  if (await page.locator('.sheet').count()) await page.keyboard.press('Escape');
+
+  // 3. Food > Halal top quick bar shows live counts, Halal near me, Prayer list jump, and Google Maps fallback under Apple Maps
+  await page.goto(url('food/halal'));
+  await expect(page.locator('.halal-quick-bar')).toContainText('2 places · 1 prayer room in Umeda');
+  await expect(page.getByRole('link', { name: 'Search Maps for halal restaurants near me' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Prayer list (1)' })).toBeVisible();
+
+  // 4. Places exposes 44pt Clear search button and Jump to today pill
+  await page.goto(url('places?k=stops&by=day'));
+  await expect(page.getByRole('button', { name: 'Jump to today' })).toBeVisible();
+  await page.getByRole('searchbox', { name: 'Search places' }).fill('Garden ba');
+  const clearBtn = page.getByRole('button', { name: 'Clear search' });
+  await expect(clearBtn).toBeVisible();
+  const clearBox = await clearBtn.boundingBox();
+  expect(Math.round(clearBox.width)).toBeGreaterThanOrEqual(44);
+  expect(Math.round(clearBox.height)).toBeGreaterThanOrEqual(44);
+  await clearBtn.click();
+  await expect(page.getByRole('searchbox', { name: 'Search places' })).toHaveValue('');
+
+  // 5. Info root surfaces Hotel & curbside card with at most one .btn-filled; Airport day surfaces data-driven Directions from here
+  await page.goto(url('info'));
+  const curb = page.locator('.info-curb-card');
+  await expect(curb).toContainText('Sample Hotel');
+  await expect(curb.getByRole('link', { name: 'Directions from here to Sample Hotel' })).toBeVisible();
+  await expect(curb.getByRole('button', { name: 'Copy hotel Japanese address' })).toBeVisible();
+  expect(await page.locator('.btn-filled:visible').count()).toBeLessThanOrEqual(1);
+
+  await page.goto(url('info/airport'));
+  await expect(page.getByRole('link', { name: 'Directions from here to Sample Station' })).toBeVisible();
+  expect(await page.locator('.btn-filled:visible').count()).toBeLessThanOrEqual(1);
+});
