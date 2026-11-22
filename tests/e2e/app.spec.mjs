@@ -803,3 +803,48 @@ test('whole-app scan pass: place detail top actions, confirmed-card Directions f
   await expect(page.getByRole('link', { name: 'Directions from here to Sample Station' })).toBeVisible();
   expect(await page.locator('.btn-filled:visible').count()).toBeLessThanOrEqual(1);
 });
+
+test('First stop regression & leg-by-leg shop navigation: unbooked morning never routes to evening dinner while reservation stays visible', async ({ page }) => {
+  await unlock(page);
+
+  // Day 2 has unbooked morning Zone 1 (9:00 to 12:30) and confirmed 18:00 dinner in Zone 3 (Sample Tempura Counter)
+  // Viewing Day 2 from another day (First stop) must route to Zone 1's morning target, NOT the 18:00 dinner
+  await page.goto(url('days/2030-05-08', 'asof=2030-05-07T10:00'));
+  const firstStep = page.locator('.next-step-card');
+  await expect(firstStep.locator('.eyebrow')).toContainText('First stop · 9:00 to 12:30');
+  await expect(firstStep.locator('.next-step-title')).toHaveText('Sample Station');
+  await expect(firstStep.locator('.next-step-title')).not.toContainText('Sample Tempura Counter');
+  await expect(firstStep.getByRole('link', { name: 'Directions from here to Sample Station' }))
+    .toHaveAttribute('href', /destination=Sample%20Station%20Osaka/);
+  // Confirmed dinner card remains prominently visible right below
+  const bkCard = page.locator('.booking-card').first();
+  await expect(bkCard).toBeVisible();
+  await expect(bkCard).toContainText('18:00 · Dinner');
+  await expect(bkCard).toContainText('Sample Tempura Counter');
+
+  // Viewing Day 2 during the morning (09:30) also routes Active now · Zone 1 to Sample Station, not dinner
+  await page.goto(url('days/2030-05-08', 'asof=2030-05-08T09:30'));
+  await expect(firstStep.locator('.eyebrow')).toContainText('Active now · Zone 1');
+  await expect(firstStep.locator('.next-step-title')).toHaveText('Sample Station');
+
+  // Selecting Zone 3 (?z=2) or viewing at dinner time (18:00) scopes the top card to Sample Tempura Counter
+  await page.goto(url('days/2030-05-08?z=2', 'asof=2030-05-07T10:00'));
+  await expect(firstStep.locator('.eyebrow')).toContainText('Zone 3 · 17:30 to 21:00');
+  await expect(firstStep.locator('.next-step-title')).toHaveText('Sample Tempura Counter');
+  await expect(firstStep.getByRole('link', { name: 'Directions from here to Sample Tempura Counter' }))
+    .toHaveAttribute('href', /destination=Sample%20Tempura%20Counter%20Osaka/);
+
+  await page.goto(url('days/2030-05-08', 'asof=2030-05-08T18:00'));
+  await expect(firstStep.locator('.eyebrow')).toContainText('Active now · Zone 3');
+  await expect(firstStep.locator('.next-step-title')).toHaveText('Sample Tempura Counter');
+
+  // Leg-by-leg shop sequence: Place detail provides both Directions from here and Point-to-point from previous stop
+  const shopDisc = page.locator('section.zone').first().locator('details.disclosure').filter({ hasText: 'Shop (1)' });
+  await shopDisc.locator('summary').click();
+  await shopDisc.locator('.row-link', { hasText: 'Sample Market ba' }).click();
+  const detail = page.locator('.sheet, .inspector').filter({ hasText: 'Sample Market ba' });
+  const fromHere = detail.getByRole('link', { name: 'Directions from here to Sample Market ba' });
+  expect(await fromHere.getAttribute('href')).not.toContain('origin=');
+  await expect(detail.getByRole('link', { name: 'Point-to-point route from Sample Garden ba Osaka to Sample Market ba Osaka' }))
+    .toHaveAttribute('href', /origin=Sample%20Garden%20ba%20Osaka&destination=Sample%20Market%20ba%20Osaka/);
+});
