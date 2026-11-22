@@ -600,10 +600,12 @@ function findPlace(id) {
     || cache.prayer.find((p) => p.id === id) || null;
 }
 
-function placeDetail(it) { // S7: the row expanded, with deeper practical field notes
+function placeDetail(it) { // S7: the row expanded, with immediate curbside actions & progressive disclosure
   const t = ctx.trip;
   const cb = confirmedBookingForPlace(t, it);
   const q = (cb && cb.maps_query) || it.maps_query || it.name;
+  const targetName = (cb && cb.venue) || it.name;
+  const primaryMode = (cb && cb.mode) || defaultPlaceMode(it);
   const curV = ctx.route.v || route().path;
   const kindLabel = { stops: 'See', shop: 'Shop', sweet: 'Coffee, sweets & rest', eat: 'Eat', bakery: 'Bakery', halal: 'Halal food', prayer: 'Prayer room' }[it.kind];
   const fieldNotes = grouped([
@@ -612,6 +614,37 @@ function placeDetail(it) { // S7: the row expanded, with deeper practical field 
     kvStack('Entrance & lifts', it.entry_tip),
   ], 'kv-list field-notes-list');
   const canDriver = Boolean(it.jp || it.where || it.area || q);
+  const jpCopy = [it.jp, it.address_jp].filter(Boolean).join(' ');
+  const coreFacts = grouped([
+    cb ? kv('Reservation', ['Confirmed', cb.time, formatGuests(cb.guests)].filter(Boolean).join(' \u00b7 ')) : null,
+    kv('Where', it.where || it.area),
+    kv('Hours', it.hours),
+    kv('Opens', it.opens),
+    kv('Last entry', it.last_entry),
+    kv('Closed', it.closed),
+    kv('Price', it.price || it.cost),
+    kv('Walk', walkCaption(it)),
+    kv('Seats', it.seats),
+    !cb ? kv('Booking', it.booking) : null,
+  ], 'kv-list');
+  const secondaryRows = [
+    kv('Cuisine', it.cuisine),
+    kv('Tax-free', it.tax_free),
+    kv('Access', it.access),
+    kv('Getting there', it.getting_there),
+    kv('Coffee', it.coffee),
+    kv('Queue', it.queue),
+    kv('For', it.for ? fill(t, it.for) : ''),
+    it.kind === 'bakery' ? kv(fill(t, 'For {B}'), it.for_b) : null,
+  ].filter(Boolean);
+  const secondaryNotes = [
+    it.status ? h('p', { class: 'footnote' }, it.certifier ? `Certified by ${it.certifier}` : 'Certifier not named') : null,
+    it.alcohol ? h('p', { class: 'footnote' }, `Alcohol served: ${it.alcohol}`) : null,
+    it.verified ? h('p', { class: 'footnote' }, `Checked ${t.halal.as_of}: ${it.verified}`) : null,
+    it.checked_on ? h('p', { class: 'footnote' }, `Primary source checked ${it.checked_on}${it.verification_note ? `: ${it.verification_note}` : '.'}`) : null,
+    it.tags && it.tags.length ? h('div', { class: 'chips' }, it.tags.map((x) => chip(x, 'plain'))) : null,
+  ].filter(Boolean);
+  const hasSecondary = secondaryRows.length > 0 || secondaryNotes.length > 0;
   return h('article', { class: 'place' },
     h('p', { class: 'eyebrow' }, [kindLabel, it.zone, it.dayLabel].filter(Boolean).join(' \u00b7 ')),
     h('h2', { class: 'place-title', id: 'place-title' }, it.name),
@@ -622,41 +655,24 @@ function placeDetail(it) { // S7: the row expanded, with deeper practical field 
       halalChip(it.status),
       it.kind === 'eat' ? dietChip(it.for_b) : null,
       it.kind === 'prayer' && it.access ? chip(it.access, /patron/i.test(it.access) ? 'ev ev-claim' : 'plain') : null),
+    fromHereActionRow(q, targetName, primaryMode),
+    (jpCopy || canDriver) ? h('div', { class: 'place-top-actions' },
+      jpCopy ? copyTextButton(jpCopy, 'Copy Japanese', `Copy Japanese name for ${it.name}`) : null,
+      canDriver ? link(withParam(curV, 'taxi', `pl:${it.id}`), { class: 'btn btn-gray btn-small', 'data-key': `drv-pl-${it.id}`, 'aria-label': `Show driver card for ${it.name}` }, icon('car'), h('span', null, 'Show driver card')) : null) : null,
     it.what || it.signature ? h('p', { class: 'body' }, it.what || it.signature) : null,
     it.kind === 'bakery' && it.why ? h('p', { class: 'body' }, it.why) : null,
-    fieldNotes,
-    grouped([
-      cb ? kv('Reservation', ['Confirmed', cb.time, formatGuests(cb.guests)].filter(Boolean).join(' \u00b7 ')) : null,
-      kv('Cuisine', it.cuisine),
-      kv('Where', it.where || it.area),
-      kv('Hours', it.hours),
-      kv('Last entry', it.last_entry),
-      kv('Opens', it.opens),
-      kv('Closed', it.closed),
-      kv('Price', it.price || it.cost),
-      !cb ? kv('Booking', it.booking) : null,
-      kv('Tax-free', it.tax_free),
-      kv('Access', it.access),
-      kv('Walk', walkCaption(it)),
-      kv('Getting there', it.getting_there),
-      kv('Seats', it.seats),
-      kv('Coffee', it.coffee),
-      kv('Queue', it.queue),
-      kv('For', it.for ? fill(t, it.for) : ''),
-      it.kind === 'bakery' ? kv(fill(t, 'For {B}'), it.for_b) : null,
-    ], 'kv-list'),
-    cb ? bookingReferenceDisclosure(cb) : null,
-    it.status ? h('p', { class: 'footnote' }, it.certifier ? `Certified by ${it.certifier}` : 'Certifier not named') : null,
-    it.alcohol ? h('p', { class: 'footnote' }, `Alcohol served: ${it.alcohol}`) : null,
-    it.verified ? h('p', { class: 'footnote' }, `Checked ${t.halal.as_of}: ${it.verified}`) : null,
-    it.checked_on ? h('p', { class: 'footnote' }, `Primary source checked ${it.checked_on}${it.verification_note ? `: ${it.verification_note}` : '.'}`) : null,
     it.pacing ? h('p', { class: 'note' }, icon('figureWalk'), h('span', null, it.pacing)) : null,
     it.rain_alt ? h('p', { class: 'note' }, icon('leaf'), h('span', null, it.rain_alt)) : null,
-    it.tags && it.tags.length ? h('div', { class: 'chips' }, it.tags.map((x) => chip(x, 'plain'))) : null,
-    goButtons(q, (cb && cb.venue) || it.name, (cb && cb.mode) || defaultPlaceMode(it)),
-    h('div', { class: 'place-links' },
-      canDriver ? link(withParam(curV, 'taxi', `pl:${it.id}`), { class: 'text-btn', 'data-key': `drv-pl-${it.id}`, 'aria-label': `Show driver card for ${it.name}` }, icon('car'), h('span', null, 'Show driver card')) : null,
-      it.source ? ext(it.source, [icon('link'), h('span', null, 'Source')], { class: 'text-btn', 'aria-label': `Source for ${it.name}` }) : null));
+    fieldNotes,
+    coreFacts,
+    cb ? bookingReferenceDisclosure(cb) : null,
+    hasSecondary ? h('details', { class: 'disclosure place-more' },
+      h('summary', null, h('span', { class: 'summary-label' }, 'More details & verification')),
+      secondaryRows.length ? grouped(secondaryRows, 'kv-list') : null,
+      secondaryNotes.length ? h('div', { class: 'disclosure-pad place-more-notes' }, ...secondaryNotes) : null) : null,
+    goButtons(q, targetName, primaryMode),
+    it.source ? h('div', { class: 'place-links' },
+      ext(it.source, [icon('link'), h('span', null, 'Source')], { class: 'text-btn', 'aria-label': `Source for ${it.name}` })) : null);
 }
 
 function kv(label, value) {
@@ -770,6 +786,7 @@ function confirmedBookingCard(b, { day, v = route().path, showDayLink = false } 
       icon('car'), h('span', null, 'Driver card')));
   }
   const primaryMode = b.mode || (b.kind === 'transfer' ? 'driving' : 'walking');
+  const bkJp = [b.venue_jp, b.address_jp].filter(Boolean).join(' ');
   return h('article', { class: 'card booking-card', 'aria-label': `Confirmed: ${b.venue}` },
     h('div', { class: 'booking-top' },
       chip('Confirmed', 'ev ev-certified', 'checkCircle'),
@@ -777,6 +794,8 @@ function confirmedBookingCard(b, { day, v = route().path, showDayLink = false } 
     h('h3', { class: 'booking-venue' }, b.venue, b.venue_jp ? h('span', { class: 'row-jp', lang: 'ja' }, ` ${b.venue_jp}`) : null),
     metaParts.length ? h('p', { class: 'booking-meta' }, metaParts.join(' \u00b7 ')) : null,
     b.kind === 'transfer' && b.notes ? h('p', { class: 'booking-note' }, b.notes) : null,
+    fromHereActionRow(b.maps_query || b.venue, b.venue, primaryMode),
+    bkJp ? h('div', { class: 'booking-copy-row' }, copyTextButton(bkJp, 'Copy Japanese', `Copy Japanese name for ${b.venue}`)) : null,
     links.length ? h('div', { class: 'booking-links' }, ...links) : null,
     goButtons(b.maps_query || b.venue, b.venue, primaryMode),
     bookingReferenceDisclosure(b));
@@ -899,8 +918,8 @@ function viewToday(r) {
             confirmedZones.has(i) ? chip('Confirmed', 'ev ev-certified', 'checkCircle') : null,
             i === nn.now ? chip('Now', 'now') : null, icon('chevronRight', null, 'chevron')));
       }))),
-      watch.length ? section('Watch out', h('ul', { class: 'bullets warn' }, watch.slice(0, 3).map((w) => h('li', null, w))),
-        watch.length > 3 ? h('details', { class: 'disclosure' }, h('summary', null, `${watch.length - 3} more`), h('ul', { class: 'bullets warn' }, watch.slice(3).map((w) => h('li', null, w)))) : null) : null,
+      watch.length ? section('Watch out', h('ul', { class: 'bullets warn' }, watch.slice(0, 2).map((w) => h('li', null, w))),
+        watch.length > 2 ? h('details', { class: 'disclosure' }, h('summary', null, `${watch.length - 2} more watch-outs`), h('ul', { class: 'bullets warn' }, watch.slice(2).map((w) => h('li', null, w)))) : null) : null,
       !nn.done ? tomorrowSection : null,
     ];
   }
@@ -1405,8 +1424,8 @@ function dayDetail(d, i) {
               ? h('ul', { class: 'bullets' }, d.rain_plan.map((r) => h('li', null, r)))
               : h('div', { class: 'disclosure-pad' }, h('p', { class: 'body' }, d.rain_plan))) : null),
         section('Good to know', d.pacing ? h('p', { class: 'note' }, icon('figureWalk'), h('span', null, d.pacing)) : null,
-          watch.length ? h('ul', { class: 'bullets warn' }, watch.slice(0, 4).map((w) => h('li', null, w))) : null,
-          watch.length > 4 ? h('details', { class: 'disclosure' }, h('summary', null, `${watch.length - 4} more watch-outs`), h('ul', { class: 'bullets warn' }, watch.slice(4).map((w) => h('li', null, w)))) : null),
+          watch.length ? h('ul', { class: 'bullets warn' }, watch.slice(0, 2).map((w) => h('li', null, w))) : null,
+          watch.length > 2 ? h('details', { class: 'disclosure' }, h('summary', null, `${watch.length - 2} more watch-outs`), h('ul', { class: 'bullets warn' }, watch.slice(2).map((w) => h('li', null, w)))) : null),
         decisions.length ? section('Questions to settle', h('ul', { class: 'bullets' }, decisions.map((w) => h('li', null, w)))) : null,
         (d.sources.length || d.checked_on) ? section('Sources',
           d.checked_on ? h('p', { class: 'caption' }, `Checked ${d.checked_on}`) : null,
@@ -1470,7 +1489,6 @@ function zoneCard(d, z, zi, v, phaseLabels = [], zBookings = [], isNow = false) 
   const routeRows = [
     z.short_route ? kvStack('Shorter walk', z.short_route) : null,
     z.seating ? kvStack('Seating & rest', z.seating) : null,
-    z.optional_extension ? kvStack('Optional extension', z.optional_extension) : null,
   ].filter(Boolean);
   const showSpaJump = d.spa_options && d.spa_options.length > 0 && /spa|scalp|facial|fukushima|walk-in/i.test(`${z.name} ${z.purpose}`);
   return h('section', { class: 'zone card', 'aria-labelledby': `zone-${zi}` },
@@ -1483,6 +1501,9 @@ function zoneCard(d, z, zi, v, phaseLabels = [], zBookings = [], isNow = false) 
     h('p', { class: 'body' }, z.purpose),
     confirmedRows.length ? grouped(confirmedRows, 'zone-confirmed') : null,
     routeRows.length ? grouped(routeRows, 'kv-list zone-routes') : null,
+    z.optional_extension ? h('details', { class: 'disclosure zone-ext-disc' },
+      h('summary', null, h('span', { class: 'summary-label' }, 'Optional loop if energy permits')),
+      h('div', { class: 'disclosure-pad' }, h('p', { class: 'body' }, z.optional_extension))) : null,
     showSpaJump ? h('button', {
       type: 'button',
       class: 'flow-jump zone-spa-jump',
@@ -1530,7 +1551,8 @@ function viewFood(r) {
     const prayer = cache.prayer.filter((p) => p.g === g);
     const groupLabel = t.halal.groups.find((x) => x.id === g)?.label || g;
     const prayerSection = prayer.length ? section('Prayer rooms', grouped(prayer.map((p) => placeRow(p, base)))) : section('Prayer rooms', h('p', { class: 'empty' }, `No prayer rooms listed for ${groupLabel}. Search Maps for one nearby.`));
-    if (prayerSection && r.params.get('focus') === 'prayer') prayerSection.id = 'prayer';
+    if (prayerSection) prayerSection.id = 'prayer';
+    const isApple = ctx.prefs.maps === 'apple';
     list = [
       cats,
       h('div', { class: 'filters' },
@@ -1545,13 +1567,17 @@ function viewFood(r) {
           return h('button', { type: 'button', class: `area-link ${tg === g ? 'is-active' : ''}`, onclick: () => go(`food/halal?g=${tg}${focusQ}`, { replace: true }) },
             icon('pin'), h('span', null, lbl));
         })) : null,
+      h('div', { class: 'halal-quick-bar' },
+        h('p', { class: 'meta nums' }, `${places.length} ${places.length === 1 ? 'place' : 'places'} \u00b7 ${prayer.length} ${prayer.length === 1 ? 'prayer room' : 'prayer rooms'} in ${groupLabel}`),
+        h('div', { class: 'halal-quick-actions' },
+          ext(mapsUrl('halal restaurant'), [icon('search'), h('span', null, 'Halal near me')], { class: 'btn btn-tinted btn-small', 'aria-label': 'Search Maps for halal restaurants near me' }),
+          ext(mapsUrl('prayer room'), [icon('moon'), h('span', null, 'Prayer rooms near me')], { class: 'btn btn-gray btn-small', 'aria-label': 'Search Maps for prayer rooms near me' }),
+          isApple ? ext('https://www.google.com/maps/search/?api=1&query=halal%20restaurant', [icon('map'), h('span', null, 'Google Maps: Halal')], { class: 'btn btn-gray btn-small', 'aria-label': 'Search Google Maps for halal restaurants near me' }) : null,
+          prayer.length ? h('button', { type: 'button', class: 'btn btn-gray btn-small', onclick: () => document.getElementById('prayer')?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' }) }, icon('moon'), h('span', null, `Prayer list (${prayer.length})`)) : null)),
       h('details', { class: 'disclosure legend-box' }, h('summary', null, 'What the labels mean'),
         h('ul', { class: 'legend-list' }, HALAL_STATUS.map((s) => h('li', null, halalChip(s), h('span', null, HALAL_MEANING[s]))))),
       h('p', { class: 'caption' }, `Checked ${t.halal.as_of}. Hours and status can change, so confirm on arrival.`),
       places.length ? grouped(places.map((p) => placeRow(p, base))) : h('p', { class: 'empty' }, certOnly ? 'No certified places in this area. Turn off Certified only to see more.' : `No halal places listed for ${groupLabel}. Try another area or search Maps.`),
-      h('div', { class: 'go-row wide' },
-        ext(mapsUrl('halal restaurant'), [icon('search'), h('span', null, 'Halal near me')], { class: 'btn btn-gray', 'aria-label': 'Search Maps for halal restaurants near me' }),
-        ext(mapsUrl('prayer room'), [icon('moon'), h('span', null, 'Prayer rooms near me')], { class: 'btn btn-gray', 'aria-label': 'Search Maps for prayer rooms near me' })),
       prayerSection,
       t.halal.dropped.length ? section('Closed or left out', h('details', { class: 'disclosure' }, h('summary', null, `${t.halal.dropped.length} places checked and left out`),
         h('ul', { class: 'grouped' }, t.halal.dropped.map((x) => h('li', { class: 'kv stack' }, h('span', { class: 'kv-label' }, x.name), h('span', { class: 'kv-value' }, x.reason)))))) : null,
@@ -1603,16 +1629,21 @@ function viewPlaces(r) {
     onkeydown: (e) => { if (e.key === 'Escape') { e.target.value = ''; lastFocus = 'search'; go(withParam(base, 'q', null), { replace: true }); } } });
   let timer;
   field.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => { lastFocus = 'search'; go(withParam(base, 'q', field.value.trim()), { replace: true }); }, 250); });
+  const clearBtn = q ? h('button', { type: 'button', class: 'field-btn search-clear', 'aria-label': 'Clear search', onclick: () => { lastFocus = 'search'; go(withParam(base, 'q', null), { replace: true }); } }, icon('xmarkCircle')) : null;
+  const todayIso = now().iso;
+  const hasTodayGroup = by === 'day' && groups.has(todayIso);
   const list = [
-    h('form', { class: 'search-wrap', role: 'search', onsubmit: (e) => e.preventDefault() }, icon('search'), field),
+    h('form', { class: 'search-wrap', role: 'search', onsubmit: (e) => e.preventDefault() }, icon('search'), field, clearBtn),
     segmented('Kind', KINDS.map(([k, label]) => [k, label]), kind, (k) => { ctx.setPref('kind', k); go(withParam(base, 'k', k), { replace: true }); }),
     h('div', { class: 'filters' },
       segmented('Group by', [['day', 'Day'], ['area', 'Area']], by, (b) => { ctx.setPref('by', b); go(withParam(base, 'by', b), { replace: true }); }, 'small'),
       kind === 'eat' ? toggleRow(fill(t, 'Works for {B}'), onlyB, (on) => { ctx.setPref('onlyB', on); draw(); }) : null),
-    h('p', { class: 'caption', role: 'status' }, `${items.length} ${items.length === 1 ? 'place' : 'places'}${q ? ` matching “${q}”` : ''}`),
+    h('div', { class: 'places-status-row' },
+      h('p', { class: 'caption', role: 'status' }, `${items.length} ${items.length === 1 ? 'place' : 'places'}${q ? ` matching “${q}”` : ''}`),
+      hasTodayGroup ? h('button', { type: 'button', class: 'flow-jump places-today-jump', onclick: () => document.getElementById(`places-day-${todayIso}`)?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' }) }, icon('calendar'), h('span', null, 'Jump to today')) : null),
     items.length ? [...groups].map(([key, ps]) => {
       const d = by === 'day' ? t.days.find((x) => x.iso === key) : null;
-      return h('section', { class: 'group' },
+      return h('section', { class: 'group', id: d ? `places-day-${d.iso}` : null },
         h('div', { class: 'group-head' }, h('h2', { class: 'group-title' }, d ? `${d.date} · ${d.title}` : key),
           d ? link(`days/${d.iso}`, { class: 'text-btn small', 'aria-label': `Open day, ${d.date}` }, 'Open day') : null),
         grouped(ps.map((p) => placeRow(p, base))));
@@ -1650,9 +1681,20 @@ function infoTitle(id) {
 
 function viewInfo(r) {
   const id = r.sub[0];
+  const ho = ctx.trip.hotel;
+  const hoJp = [ho.name_jp, ho.address_jp].filter(Boolean).join(' ');
   const hasBookings = confirmedBookings(ctx.trip).length > 0;
   const rows = (ids) => grouped(ids.filter((x) => ['hotel', 'airport', 'guides', 'app', 'to-book'].includes(x) || (x === 'bookings' && hasBookings) || (docSec(x) && docSec(x).md.trim())).map((x) => pushRow(`info/${x}`, infoTitle(x))));
+  const curbsideCard = !id ? h('div', { class: 'card next-step-card info-curb-card' },
+    h('p', { class: 'eyebrow' }, 'Hotel & curbside'),
+    h('p', { class: 'next-step-title' }, ho.name || 'Hotel'),
+    ho.stations ? h('p', { class: 'meta' }, ho.stations) : null,
+    fromHereActionRow(ho.maps_query, ho.name || 'the hotel', hotelReturnMode(null), { primaryFilled: true }),
+    h('div', { class: 'end-hotel-actions' },
+      hoJp ? copyTextButton(hoJp, 'Copy hotel Japanese', 'Copy hotel Japanese address') : null,
+      link('info/taxi', { class: 'btn btn-gray btn-small', 'data-key': 'curb-taxi' }, icon('car'), h('span', null, 'Hotel driver screen')))) : null;
   const list = [
+    curbsideCard,
     documentShortcut(),
     section('Stay', grouped([pushRow('info/hotel', 'Hotel', ctx.trip.hotel.name),
       h('li', { class: 'row' }, link('info/taxi', { class: 'row-link', 'data-key': 'show-taxi' }, h('span', { class: 'row-text' }, h('span', { class: 'row-title tint' }, 'Show taxi card')), icon('car', null, 'chevron'))),
@@ -1683,7 +1725,11 @@ function bookingsView() {
   return [
     confirmed.length ? section('Confirmed reservations', h('div', { class: 'bookings-stack' },
       confirmed.map((b) => confirmedBookingCard(b, { day: dayOf(b.day), v: 'info/bookings', showDayLink: true })))) : null,
-    s && s.md.trim() ? section(confirmed.length ? 'Flights, hotel & notes' : null, h('div', { class: 'doc' }, markdown(s.md, { onTask: taskToggle }))) : null,
+    s && s.md.trim() ? (confirmed.length
+      ? section('Flights, hotel & notes', h('details', { class: 'disclosure' },
+        h('summary', null, h('span', { class: 'summary-label' }, 'Flight numbers, hotel & booking notes')),
+        h('div', { class: 'disclosure-pad doc' }, markdown(s.md, { onTask: taskToggle }))))
+      : section(null, h('div', { class: 'doc' }, markdown(s.md, { onTask: taskToggle })))) : null,
   ];
 }
 
@@ -1727,11 +1773,14 @@ function docView(id) {
 
 function hotelView() {
   const ho = ctx.trip.hotel;
+  const hoJp = [ho.name_jp, ho.address_jp].filter(Boolean).join(' ');
   return [
+    fromHereActionRow(ho.maps_query, ho.name || 'the hotel', hotelReturnMode(null)),
+    hoJp ? h('div', { class: 'end-hotel-actions' }, copyTextButton(hoJp, 'Copy hotel Japanese', 'Copy hotel Japanese address')) : null,
+    link('info/taxi', { class: 'btn btn-filled', 'data-key': 'show-taxi-2' }, icon('car'), 'Show Taxi Card'),
     grouped([kv('Name', ho.name), ho.name_jp ? h('li', { class: 'kv' }, h('span', { class: 'kv-label' }, 'In Japanese'), h('span', { class: 'kv-value', lang: 'ja' }, ho.name_jp)) : null,
       kv('Address', ho.address), kv('Check-in', ho.checkin), kv('Check-out', ho.checkout), kv('Stations', ho.stations),
       ho.phone ? h('li', { class: 'kv' }, h('span', { class: 'kv-label' }, 'Phone'), ext(`tel:${ho.phone.replace(/\s/g, '')}`, ho.phone, { class: 'text-btn small' })) : null], 'kv-list'),
-    link('info/taxi', { class: 'btn btn-filled', 'data-key': 'show-taxi-2' }, icon('car'), 'Show Taxi Card'),
     goButtons(ho.maps_query, 'the hotel', 'transit'),
   ];
 }
@@ -1849,13 +1898,26 @@ function airportDay() {
   const airportRows = ga ? ga.md.split('\n').filter((l, i, a) => /^\|/.test(l) && (i < 2 || /\bKIX\b|airport/i.test(l))).join('\n') : '';
   const bookings = docSec('bookings');
   const flights = bookings ? bookings.md.split('\n').filter((l) => /^\|/.test(l)).join('\n').split(/\n(?=\| Hotel)/)[0] : '';
+  const airportDest = last?.travel_cards?.[0]?.from_here_dest
+    || transfers.find((b) => b.day === last?.iso)?.maps_query
+    || first?.zones?.[0]?.getting_there?.maps_query || '';
+  const airportLabel = last?.travel_cards?.[0]?.dest_label
+    || first?.zones?.[0]?.getting_there?.arrive_at || 'the airport';
   return [
+    airportDest ? h('div', { class: 'card next-step-card' },
+      h('p', { class: 'eyebrow' }, 'Airport navigation'),
+      h('p', { class: 'next-step-title' }, airportLabel),
+      fromHereActionRow(airportDest, airportLabel, 'driving', { primaryFilled: true })) : null,
     documentShortcut(),
     transfers.length ? section('Confirmed airport transfers', h('div', { class: 'bookings-stack' },
       transfers.map((b) => confirmedBookingCard(b, { day: dayOf(b.day), v: 'info/airport', showDayLink: true })))) : null,
     section('Arrival and departure', grouped([pushRow(`days/${first.iso}`, first.title, first.date), pushRow(`days/${last.iso}`, last.title, last.date)])),
-    flights ? section('Flights', h('div', { class: 'doc' }, markdown(flights))) : null,
-    airportRows ? section('Airport transfers', h('div', { class: 'doc' }, markdown(airportRows))) : null,
+    flights ? section('Flights', h('details', { class: 'disclosure', open: !transfers.length },
+      h('summary', null, h('span', { class: 'summary-label' }, 'Flight schedule notes')),
+      h('div', { class: 'disclosure-pad doc' }, markdown(flights)))) : null,
+    airportRows ? section('Airport transfers', h('details', { class: 'disclosure' },
+      h('summary', null, h('span', { class: 'summary-label' }, 'Rail & fallback airport routes')),
+      h('div', { class: 'disclosure-pad doc' }, markdown(airportRows)))) : null,
     h('p', { class: 'caption' }, 'From the bookings and getting-around notes. Flight times change: the airline app is the source of truth.'),
   ];
 }
