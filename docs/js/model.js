@@ -67,9 +67,15 @@ export function tripPhase(days, iso) {
   return { phase: 'after', index: days.length - 1 };
 }
 
-// Now and Next by zone time ranges. Returns nulls rather than guessing.
+// Now and Next by zone time ranges (falling back to daypart windows only when mixed with clock ranges).
 export function nowNext(day, minutes) {
-  const zones = day.zones.map((z, i) => ({ z, i, r: zoneRange(z) }));
+  const raw = (day?.zones || []).map((z, i) => ({ z, i, r: zoneRange(z) }));
+  if (!raw.length || raw.every((x) => !x.r)) return { now: null, next: null, known: false };
+  const zones = raw.map((x) => {
+    if (x.r) return x;
+    const win = flowWindow(x.z?.time);
+    return { ...x, r: win ? { start: win[0], end: win[1] } : null };
+  });
   if (zones.some((x) => !x.r)) return { now: null, next: null, known: false };
   const now = zones.find((x) => minutes >= x.r.start && minutes < x.r.end) || null;
   const next = zones.find((x) => x.r.start > minutes) || null;
@@ -145,6 +151,27 @@ export function dayHalalGroups(trip, iso) {
     if (out.length) return out;
   }
   return [defaultHalalGroup(trip, iso)];
+}
+
+// Resolves the best halal/prayer group for a specific active/upcoming zone on multi-area days
+// using only runtime group ids/labels from the decrypted payload (no place names in public code).
+export function zoneHalalGroup(trip, day, zoneIndex) {
+  const groups = trip?.halal?.groups;
+  if (!Array.isArray(groups) || !groups.length || !day) return '';
+  const dayGroups = dayHalalGroups(trip, day.iso);
+  const valid = new Set(groups.map((g) => g.id));
+  const z = Number.isInteger(zoneIndex) && zoneIndex >= 0 ? day.zones?.[zoneIndex] : null;
+  if (z) {
+    if (z.halal_group && valid.has(z.halal_group)) return z.halal_group;
+    const hay = normKey(`${z.name || ''} ${z.purpose || ''} ${z.getting_there?.arrive_at || ''}`);
+    const candidates = dayGroups.length > 1 ? groups.filter((g) => dayGroups.includes(g.id)) : groups;
+    for (const g of candidates) {
+      const idNorm = normKey(g.id);
+      const lblNorm = normKey(g.label);
+      if ((idNorm && hay.includes(idNorm)) || (lblNorm && hay.includes(lblNorm))) return g.id;
+    }
+  }
+  return dayGroups[0] || defaultHalalGroup(trip, day.iso);
 }
 
 // Travellers come from the payload with roles: A is the trip owner, B the second traveller.
@@ -288,6 +315,11 @@ export function isSupersededByConfirmedBooking(trip, item) {
   return confirmed.some((b) => {
     if (b.replaces_to_book && b.replaces_to_book === item.id) return true;
     if (itemNorm && (normKey(b.venue) === itemNorm || (b.place_match && normKey(b.place_match) === itemNorm))) return true;
+    if (b.kind === 'transfer' && item.kind === 'transfer') {
+      if (b.slot && item.slot) return normKey(b.slot) === normKey(item.slot);
+      const bZone = day ? explicitBookingZoneIndex(day, b) : -1;
+      return bZone >= 0 && itemZone === bZone;
+    }
     const bIsDining = !b.kind || b.kind === 'dining' || b.kind === 'restaurant' || Boolean(b.meal);
     if (bIsDining && isRestaurantItem) {
       if (b.meal && itemMeal) return b.meal === itemMeal;
@@ -336,7 +368,7 @@ export function activeDayDecisions(trip, day) {
   return out;
 }
 
-function flowWindow(when) {
+export function flowWindow(when) {
   const raw = String(when || '').trim();
   const rangeMatch = /^(\d{1,2}:\d{2})\s*(?:to|-)\s*(\d{1,2}:\d{2})$/i.exec(raw);
   if (rangeMatch) return [parseHM(rangeMatch[1]), parseHM(rangeMatch[2])];
@@ -345,12 +377,12 @@ function flowWindow(when) {
   const w = raw.toLowerCase();
   if (/late\s*morning|mid[- ]?morning/.test(w)) return [600, 750];
   if (/early\s*morning|^early$/.test(w)) return [420, 600];
-  if (/\bmorning\b|\bam\b/.test(w)) return [480, 720];
+  if (/\bmorning\b|\bam\b|check[- ]?out/.test(w)) return [480, 720];
   if (/early\s*afternoon/.test(w)) return [780, 930];
   if (/late\s*afternoon/.test(w)) return [930, 1065];
-  if (/\bafternoon\b|\bpm\b/.test(w)) return [780, 1035];
+  if (/\bafternoon\b|\bpm\b|arrival|check[- ]?in/.test(w)) return [780, 1035];
   if (/\bmidday\b|\bnoon\b|\blunch\b/.test(w)) return [705, 840];
-  if (/\bdinner\b|\bevening\b/.test(w)) return [1035, 1290];
+  if (/\bdinner\b|\bevening\b|departure|airport/.test(w)) return [1035, 1290];
   if (/\bnight\b|\blate\b/.test(w)) return [1200, 1410];
   return null;
 }

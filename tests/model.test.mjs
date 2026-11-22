@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture } from './fixtures/make-fixture.mjs';
 import {
-  nowNext, zoneRange, resolveNow, tripPhase, allPlaces, foodCategories, halalByGroup, defaultHalalGroup, dayHalalGroups,
+  nowNext, zoneRange, resolveNow, tripPhase, allPlaces, foodCategories, halalByGroup, defaultHalalGroup, dayHalalGroups, zoneHalalGroup,
   walkCaption, dietKey, fill, searchPlaces, confirmedBookings, confirmedBookingsForDay, confirmedBookingForPlace,
   formatGuests, activeToBookItems, toBookCaption, activeDayOpen, activeDayDecisions, flowZoneIndex, flowBookingIndex,
   DEFAULT_TO_BOOK_NOTE, CONFIRMED_TO_BOOK_NOTE,
@@ -17,6 +17,8 @@ test('zone ranges and now/next', () => {
   assert.equal(nowNext(day, 13 * 60 + 30).next, 1);
   assert.equal(nowNext(day, 22 * 60).done, true);
   assert.equal(nowNext({ zones: [{ time: 'Evening' }] }, 600).known, false);
+  const mixed = { zones: [{ name: 'Z1', time: '9:00 to 12:00' }, { name: 'Z2', time: 'Afternoon' }] };
+  assert.deepEqual(nowNext(mixed, 14 * 60), { now: 1, next: null, known: true, done: false });
 });
 
 test('trip phase in Asia/Tokyo', () => {
@@ -55,6 +57,8 @@ test('halal ordering, default group and walk captions', () => {
   assert.equal(defaultHalalGroup(fixture, '2031-01-01'), 'umeda');
   assert.deepEqual(dayHalalGroups(fixture, '2030-05-08'), ['umeda', 'nara']);
   assert.deepEqual(dayHalalGroups(fixture, '2031-01-01'), ['umeda']);
+  assert.equal(zoneHalalGroup(fixture, fixture.days[1], 0), 'umeda');
+  assert.equal(zoneHalalGroup(fixture, fixture.days[1], 1), 'nara');
   assert.match(walkCaption(list[0]), /6 min/);
   assert.equal(walkCaption(list[1]), ''); // 0 means unknown
   assert.equal(walkCaption(fixture.halal.places[2]), ''); // not from the hotel outside Osaka
@@ -131,6 +135,23 @@ test('scoped suppression removes occupied meal/zone alternatives while preservin
     },
   };
   assert.deepEqual(activeToBookItems(mealScoped).map((x) => x.id), ['transfer-arrival', 'eat-1', 'eat-2', 'activity-d2']);
+
+  // Exact transfer matching suppresses only the matched transfer id/slot/zone, keeping unrelated same-day transfers
+  const withTransfer = {
+    ...fixture,
+    bookings: [
+      ...fixture.bookings,
+      { id: 'bk-kix-in', day: '2030-05-07', status: 'confirmed', kind: 'transfer', replaces_to_book: 'transfer-arrival', time: '18:00', venue: 'Prebooked Airport Taxi', guests: 2, maps_query: 'Sample Hotel Osaka', mode: 'driving' },
+    ],
+    to_book: {
+      note: fixture.to_book.note,
+      items: [
+        ...fixture.to_book.items,
+        { id: 'transfer-luggage', title: 'Sample luggage courier', day: '2030-05-07', slot: 'luggage', kind: 'transfer', need: 'needs', detail: 'Separate courier.' },
+      ],
+    },
+  };
+  assert.deepEqual(activeToBookItems(withTransfer).map((x) => x.id), ['eat-1', 'eat-2', 'transfer-luggage']);
 });
 
 test('global To book caption updates when confirmations exist and keeps default when none exist', () => {

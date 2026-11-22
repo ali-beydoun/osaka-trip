@@ -83,13 +83,34 @@ test.describe('unlocked app', () => {
     await expect(page.getByText('Viewing as 2030-05-08 10:30 Tokyo time')).toBeVisible();
     await expect(page.locator('.now-card')).toContainText('Sample Zone A1');
     await expect(page.locator('.now-card .chip.now')).toHaveText('Now');
+    await expect(page.locator('.now-card')).toContainText('Shorter walk: Sample flat lift-connected route ba.');
+    await expect(page.locator('.now-next-box')).toContainText('Sample Nara Zone B1');
     const confirmedCard = page.locator('.booking-card').first();
     await expect(confirmedCard.locator('.chip.ev-certified')).toHaveText('Confirmed');
     await expect(confirmedCard).toContainText('18:00');
     await expect(confirmedCard).toContainText('Sample Tempura Counter');
     await expect(confirmedCard).toContainText('2 guests');
     for (const name of ['Back to the hotel', 'Food nearby', 'Prayer rooms', 'Taxi card']) await expect(page.locator('.quick')).toContainText(name);
+    await expect(page.locator('.tomorrow-card')).toContainText('Sample Kaiseki Pavilion');
     await shot(page, testInfo, 'today');
+
+    // Taxi card opened from Today closes right back to Today without jumping to Info
+    await page.locator('.quick').getByRole('link', { name: 'Taxi card' }).click();
+    const taxi = page.getByRole('dialog', { name: 'Taxi card' });
+    await expect(taxi).toBeVisible();
+    await taxi.getByRole('button', { name: 'Close' }).click();
+    await expect(taxi).toHaveCount(0);
+    await expect(page.locator('#view-title')).toHaveText('Today');
+
+    // Zone-aware Food nearby at 14:30 resolves to Zone B1's area (nara) and after 20:00 Back to hotel uses taxi mode
+    await page.goto(url('today', 'asof=2030-05-08T14:30'));
+    await expect(page.locator('.quick').getByRole('link', { name: 'Food nearby' })).toHaveAttribute('href', /g(?:=|%3D)nara/);
+    await page.goto(url('today', 'asof=2030-05-08T20:30'));
+    await expect(page.locator('.quick').getByRole('link', { name: 'Back to the hotel' })).toHaveAttribute('href', /travelmode=driving/);
+
+    // Tapping Zone 3 from Rest of today deep-links and focuses #zone-2
+    await page.locator('.row-link', { hasText: 'Sample Zone C1' }).click();
+    await expect(page.locator('#zone-2')).toBeFocused();
   });
 
   test('today before the trip shows the countdown and future confirmed bookings', async ({ page }) => {
@@ -124,10 +145,21 @@ test.describe('unlocked app', () => {
     await expect(spaSummary).toBeVisible();
     await spaSummary.click();
     await expect(page.getByText('Sample spa intro for day 2.')).toBeVisible();
+    await expect(page.getByText('Sample District walk-in inquiries')).toBeVisible();
     await expect(page.getByText('Sample Day Spa')).toBeVisible();
+    await expect(page.getByText('Walk-in inquiry only · Same-day availability unconfirmed')).toBeVisible();
     await expect(page.getByText('Both can attend in private rooms.')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Source & booking (example.com)' })).toHaveCount(1);
     await expect(page.locator('.spa-item .chip.ev-certified')).toHaveCount(0);
+    await page.getByRole('link', { name: /Driver and walk-in card for Sample Day Spa/ }).click();
+    const spaDriver = page.getByRole('dialog', { name: 'Driver card: Sample Day Spa' });
+    await expect(spaDriver).toContainText('サンプルスパ');
+    await expect(spaDriver).toContainText('本日空きはありますか？');
+    await spaDriver.getByRole('button', { name: 'Close' }).click();
+    await expect(spaDriver).toHaveCount(0);
+    await expect(page.locator('.zone-routes').first()).toContainText('Sample flat lift-connected route ba.');
+    await expect(page.locator('.zone-routes').first()).toContainText('Sample 9F book cafe seating ba.');
+    await expect(page.locator('summary', { hasText: 'Coffee, sweets & rest (1)' }).first()).toBeVisible();
     await expect(page.locator('.zone-highlight').first()).toContainText('Sample zone highlight ba.');
     await expect(page.getByRole('heading', { name: 'Zones', exact: true })).toHaveCount(0);
     for (const t of ['Confirmed', 'The day', 'End of the day', 'Practical notes & options', 'Good to know', 'Questions to settle', 'Sources']) {
@@ -334,8 +366,7 @@ test.describe('unlocked app', () => {
       const small = await page.evaluate(() => [...document.querySelectorAll('.tab, .top-tab, .icon-btn, .btn, .row-link, .row-go, .filter-chip, .segmented button, .quick-btn, .rhythm-day a, .day-pill, .area-link, .disclosure > summary, .spa-item .text-btn, .flow-jump, .booking-links .text-btn, .booking-ext .text-btn')]
         .filter((el) => el.offsetParent !== null)
         .map((el) => { const r = el.getBoundingClientRect(); return { c: el.className, w: Math.round(r.width), h: Math.round(r.height) }; })
-        .filter((r) => r.w < 44 || r.h < 44)
-        .filter((r) => !/btn-small/.test(r.c)));
+        .filter((r) => r.w < 44 || r.h < 44));
       expect(small, v).toEqual([]);
     }
   });
@@ -451,8 +482,8 @@ test.describe('offline', () => {
     // Reuse the running fixture server's synthetic data (rebuilding the fixture would disturb parallel tests).
     fs.writeFileSync(data, await (await request.get('/data/trip.enc.json')).body());
     fs.copyFileSync('docs/sw.js', sw); fs.copyFileSync('docs/app.css', css);
-    const port = 8790 + Math.floor(Math.random() * 9);
-    const server = await serve(port, path.resolve('docs'), { '/sw.js': sw, '/app.css': css, '/data/trip.enc.json': data });
+    const server = await serve(0, path.resolve('docs'), { '/sw.js': sw, '/app.css': css, '/data/trip.enc.json': data });
+    const port = server.address().port;
     const ctx = await browser.newContext(); const page = await ctx.newPage();
     const base = `http://127.0.0.1:${port}/${TEST_HASH}`;
     const marker = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--test-rev').trim()).catch(() => null);

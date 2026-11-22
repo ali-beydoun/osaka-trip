@@ -3,7 +3,7 @@
 import { h, ext, icon, markdown } from './dom.js';
 import {
   DAY_TYPE, LOAD, MODE, FLOW_LEVEL, KINDS, HALAL_STATUS, HALAL_KEY, MEAL_LABEL, dietKey, walkCaption, resolveNow, tripPhase,
-  nowNext, allPlaces, foodCategories, halalPlaces, prayerRooms, defaultHalalGroup, dayHalalGroups, fill, searchPlaces, parseHM,
+  nowNext, allPlaces, foodCategories, halalPlaces, prayerRooms, defaultHalalGroup, dayHalalGroups, zoneHalalGroup, fill, searchPlaces, parseHM,
   confirmedBookings, confirmedBookingsForDay, confirmedBookingForPlace, bookingZoneIndex, formatGuests,
   activeToBookItems, toBookCaption, activeDayOpen, activeDayDecisions, flowZoneIndex, flowBookingIndex, normKey,
 } from './model.js';
@@ -141,9 +141,9 @@ export function onRoute(route) {
   ctx.route = route;
   const next = parse(route.v);
   const sameTab = prev.tab === next.tab;
-  const depth = (r) => r.sub.length + (r.params.get('p') ? 1 : 0) + (r.params.get('sheet') ? 1 : 0);
+  const depth = (r) => r.sub.length + (r.params.get('p') ? 1 : 0) + (r.params.get('sheet') ? 1 : 0) + (r.params.get('taxi') ? 1 : 0);
   const dir = !sameTab ? 'none' : depth(next) > depth(prev) ? 'push' : depth(next) < depth(prev) ? 'pop' : 'swap';
-  const onlySheet = sameTab && prev.path === next.path && (prev.params.get('p') !== next.params.get('p'));
+  const onlySheet = sameTab && prev.path === next.path && (prev.params.get('p') !== next.params.get('p') || prev.params.get('taxi') !== next.params.get('taxi'));
   transition(dir === 'none' || onlySheet ? null : dir, () => draw({ dir }));
 }
 
@@ -210,6 +210,7 @@ function draw({ dir, initial } = {}) {
   const view = VIEWS[r.tab](r);
   const place = view.place || null;
   const inspector = view.inspector && !isCompact();
+  const overlay = view.overlay || (r.params.get('taxi') ? driverCardFromParam(r) : null);
   const shell = h('div', { class: `shell tab-${r.tab}`, 'data-sidebar': sidebarState(), 'data-detail': place ? 'yes' : 'no' },
     h('a', { class: 'skip', href: '#main', onclick: (e) => { e.preventDefault(); document.getElementById('main')?.focus(); } }, 'Skip to content'),
     sidebar(r),
@@ -223,7 +224,7 @@ function draw({ dir, initial } = {}) {
           view.main),
         view.inspector ? inspectorPane(place, view.emptyText) : place ? sheetPane(place) : null)),
     tabbar(r.tab),
-    view.overlay || null);
+    overlay);
   root().replaceChildren(shell);
   const prevPlace = sheetOpener !== null;
   if (place && !prevPlace) sheetOpener = lastFocus || '';
@@ -233,10 +234,16 @@ function draw({ dir, initial } = {}) {
   lastV = ctx.route.v;
   // Scroll and focus (N3, N6, L7)
   const saved = scrollMemory.get(ctx.route.v);
-  if (dir === 'none' || dir === 'push' || dir === 'swap') window.scrollTo(0, dir === 'none' && saved ? saved : 0);
+  const zJump = r.tab === 'days' && r.sub[0] && r.params.has('z') && !place && !overlay ? Number(r.params.get('z')) : -1;
+  const focusSpa = r.tab === 'days' && r.sub[0] && r.params.get('focus') === 'spa' && !place && !overlay;
+  if (zJump >= 0 && Number.isInteger(zJump)) {
+    queueMicrotask(() => jumpToZone(zJump));
+  } else if (focusSpa) {
+    queueMicrotask(() => jumpToSpa());
+  } else if (dir === 'none' || dir === 'push' || dir === 'swap') window.scrollTo(0, dir === 'none' && saved ? saved : 0);
   else if (dir === 'pop' && saved !== undefined) window.scrollTo(0, saved);
   onScroll();
-  if (!initial) {
+  if (!initial && zJump < 0 && !focusSpa && !overlay) {
     const detailFocus = place && document.querySelector('.sheet-close, .inspector .place-title');
     const target = (detailFocus && !document.querySelector('.inspector') ? detailFocus : null)
       || (place && document.querySelector('.inspector') ? document.querySelector('.inspector .place-title') : null)
@@ -320,10 +327,16 @@ function inspectorPane(place, emptyText) {
   return h('aside', { class: 'inspector', 'aria-labelledby': 'place-title', tabindex: '-1' }, placeDetail(place));
 }
 
-// Escape closes an open place detail from anywhere (A6).
+// Escape closes an open driver card or place detail from anywhere (A6).
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || !ctx || !route().params.get('p')) return;
-  if (document.querySelector('.taxi')) return;
+  if (e.key !== 'Escape' || !ctx) return;
+  const r = route();
+  if (r.params.get('taxi')) {
+    e.preventDefault();
+    go(withParam(ctx.route.v || 'today', 'taxi', null));
+    return;
+  }
+  if (!r.params.get('p') || document.querySelector('.taxi')) return;
   e.preventDefault();
   go(withParam(ctx.route.v, 'p', null));
 });
@@ -425,16 +438,43 @@ function metaLine(parts) {
   return p.length ? h('p', { class: 'meta' }, p.join(' · ')) : null;
 }
 
+function defaultPlaceMode(it) {
+  if (it.mode) return it.mode;
+  if (['stops', 'eat', 'sweet', 'shop', 'prayer'].includes(it.kind) || walkCaption(it)) return 'walking';
+  return 'transit';
+}
+
+function hotelReturnMode(day) {
+  return now().minutes >= 1200 ? 'driving' : (day?.home?.mode || 'transit');
+}
+
 // Place rows present a sheet or fill the inspector, so they show no chevron (C3).
 function placeRow(it, v) {
+  const cb = ['stops', 'eat', 'sweet', 'shop'].includes(it.kind) ? confirmedBookingForPlace(ctx.trip, it) : null;
+  const confBadge = cb ? chip('Confirmed', 'ev ev-certified', 'checkCircle') : null;
+  const priorityBadge = it.badge ? chip(it.badge, /core/i.test(it.badge) ? 'next' : 'plain') : null;
   const badge = it.status ? halalChip(it.status) : it.kind === 'eat' && it.for_b ? dietChip(it.for_b) : null;
   const accessBadge = it.kind === 'prayer' && it.access ? chip(it.access, /patron/i.test(it.access) ? 'ev ev-claim' : 'plain') : null;
-  const notesBadge = (it.look_for || it.entry_tip) && ['stops', 'eat', 'sweet', 'shop'].includes(it.kind) ? chip('Field tips', 'plain') : null;
-  const chips = [badge, accessBadge, notesBadge].filter(Boolean);
+  const bookHint = !cb && it.kind === 'eat' && it.booking
+    ? (/^walk[- ]?in|^not needed|^no\b/i.test(it.booking.trim()) ? chip('Walk-in OK', 'plain')
+      : /required|\d+\s*days?\s*ahead|book ahead/i.test(it.booking) ? chip('Book ahead', 'plain') : null)
+    : null;
+  const forBadge = it.kind === 'shop' && it.for ? chip(fill(ctx.trip, `For ${it.for}`), 'plain') : null;
+  const notesBadge = (it.look_for || it.entry_tip) && ['stops', 'eat', 'sweet', 'shop'].includes(it.kind)
+    ? chip(it.entry_tip ? 'Lift & entry tips' : 'Field tips', 'plain')
+    : null;
+  const chips = [confBadge, priorityBadge, badge, accessBadge, bookHint, forBadge, notesBadge].filter(Boolean);
   const selected = route().params.get('p') === it.id;
   const sub = it.kind === 'prayer' ? [it.area, it.where] : it.kind === 'halal' ? [it.area, it.cuisine] : [];
-  const facts = ['stops', 'eat', 'sweet', 'shop'].includes(it.kind)
-    ? [it.hours, it.cost || it.price, it.closed ? `Closed ${it.closed}` : ''].filter(Boolean).join(' \u00b7 ')
+  const facts = ['stops', 'eat', 'sweet', 'shop', 'bakery', 'halal'].includes(it.kind)
+    ? [
+        it.kind === 'bakery' && it.opens ? `Opens ${it.opens}` : '',
+        it.hours,
+        it.cost || it.price,
+        it.closed ? `Closed ${it.closed}` : '',
+        it.seats,
+        it.coffee,
+      ].filter(Boolean).join(' \u00b7 ')
     : it.kind === 'prayer' && it.hours ? it.hours : '';
   return h('li', { class: 'row' },
     link(withParam(v, 'p', it.id), { class: 'row-link', 'aria-current': selected ? 'true' : null, 'data-key': `row-${it.id}` },
@@ -444,8 +484,8 @@ function placeRow(it, v) {
         it.what || it.signature ? h('span', { class: 'row-sub clamp' }, it.what || it.signature) : null,
         facts ? h('span', { class: 'row-facts' }, facts) : null,
         chips.length ? h('span', { class: 'row-chips' }, ...chips) : null,
-        walkCaption(it) ? h('span', { class: 'row-meta' }, walkCaption(it)) : it.opens ? h('span', { class: 'row-meta' }, `Opens ${it.opens}`) : null)),
-    ext(dirUrl(it.maps_query || it.name, it.mode || (walkCaption(it) ? 'walking' : 'transit')), icon('arrowOut'), { class: 'row-go', 'aria-label': `Directions to ${it.name}` }));
+        walkCaption(it) ? h('span', { class: 'row-meta' }, walkCaption(it)) : (it.kind !== 'halal' && it.opens) ? h('span', { class: 'row-meta' }, `Opens ${it.opens}`) : null)),
+    ext(dirUrl(it.maps_query || it.name, defaultPlaceMode(it)), icon('arrowOut'), { class: 'row-go', 'aria-label': `Directions to ${it.name}` }));
 }
 
 function pushRow(v, title, sub, extra) {
@@ -465,18 +505,21 @@ function placeDetail(it) { // S7: the row expanded, with deeper practical field 
   const t = ctx.trip;
   const cb = confirmedBookingForPlace(t, it);
   const q = (cb && cb.maps_query) || it.maps_query || it.name;
-  const kindLabel = { stops: 'See', shop: 'Shop', sweet: 'Something sweet', eat: 'Eat', bakery: 'Bakery', halal: 'Halal food', prayer: 'Prayer room' }[it.kind];
+  const curV = ctx.route.v || route().path;
+  const kindLabel = { stops: 'See', shop: 'Shop', sweet: 'Coffee, sweets & rest', eat: 'Eat', bakery: 'Bakery', halal: 'Halal food', prayer: 'Prayer room' }[it.kind];
   const fieldNotes = grouped([
     it.kind !== 'bakery' ? kvStack('Why it works', it.why) : null,
     kvStack('What to look for', it.look_for),
     kvStack('Entrance & lifts', it.entry_tip),
   ], 'kv-list field-notes-list');
+  const canDriver = Boolean(it.jp || it.where || it.area || q);
   return h('article', { class: 'place' },
     h('p', { class: 'eyebrow' }, [kindLabel, it.zone, it.dayLabel].filter(Boolean).join(' \u00b7 ')),
     h('h2', { class: 'place-title', id: 'place-title' }, it.name),
     it.jp ? h('p', { class: 'place-jp', lang: 'ja' }, it.jp) : null,
     h('div', { class: 'chips' },
       cb ? chip('Confirmed', 'ev ev-certified', 'checkCircle') : null,
+      it.badge ? chip(it.badge, /core/i.test(it.badge) ? 'next' : 'plain') : null,
       halalChip(it.status),
       it.kind === 'eat' ? dietChip(it.for_b) : null,
       it.kind === 'prayer' && it.access ? chip(it.access, /patron/i.test(it.access) ? 'ev ev-claim' : 'plain') : null),
@@ -500,7 +543,7 @@ function placeDetail(it) { // S7: the row expanded, with deeper practical field 
       kv('Seats', it.seats),
       kv('Coffee', it.coffee),
       kv('Queue', it.queue),
-      kv('For', it.for),
+      kv('For', it.for ? fill(t, it.for) : ''),
       it.kind === 'bakery' ? kv(fill(t, 'For {B}'), it.for_b) : null,
     ], 'kv-list'),
     cb ? bookingReferenceDisclosure(cb) : null,
@@ -511,8 +554,10 @@ function placeDetail(it) { // S7: the row expanded, with deeper practical field 
     it.pacing ? h('p', { class: 'note' }, icon('figureWalk'), h('span', null, it.pacing)) : null,
     it.rain_alt ? h('p', { class: 'note' }, icon('leaf'), h('span', null, it.rain_alt)) : null,
     it.tags && it.tags.length ? h('div', { class: 'chips' }, it.tags.map((x) => chip(x, 'plain'))) : null,
-    goButtons(q, (cb && cb.venue) || it.name, (cb && cb.mode) || it.mode || 'transit'),
-    it.source ? h('p', { class: 'source' }, ext(it.source, [icon('link'), h('span', null, 'Source')], { class: 'text-btn', 'aria-label': `Source for ${it.name}` })) : null);
+    goButtons(q, (cb && cb.venue) || it.name, (cb && cb.mode) || defaultPlaceMode(it)),
+    h('div', { class: 'place-links' },
+      canDriver ? link(withParam(curV, 'taxi', `pl:${it.id}`), { class: 'text-btn', 'data-key': `drv-pl-${it.id}`, 'aria-label': `Show driver card for ${it.name}` }, icon('car'), h('span', null, 'Show driver card')) : null,
+      it.source ? ext(it.source, [icon('link'), h('span', null, 'Source')], { class: 'text-btn', 'aria-label': `Source for ${it.name}` }) : null));
 }
 
 function kv(label, value) {
@@ -558,6 +603,15 @@ function jumpToZone(zi) {
   el.focus({ preventScroll: true });
 }
 
+function jumpToSpa() {
+  const det = document.getElementById('day-spa');
+  if (!det) return;
+  det.open = true;
+  det.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
+  const sum = det.querySelector('summary');
+  if (sum) sum.focus({ preventScroll: true });
+}
+
 function bookingReferenceDisclosure(b) {
   if (!b) return null;
   const rows = [
@@ -582,14 +636,15 @@ function confirmedBookingCard(b, { day, v = route().path, showDayLink = false } 
   const zi = d ? bookingZoneIndex(d, b) : -1;
   const targetName = normKey(b.place_match || b.venue);
   const matchedPlace = cache.places.find((p) => p.dayISO === b.day && normKey(p.name) === targetName && (zi < 0 || normKey(p.zone) === normKey(d.zones[zi]?.name)));
-  const whenText = [b.time, b.meal && MEAL_LABEL[b.meal] ? MEAL_LABEL[b.meal] : ''].filter(Boolean).join(' \u00b7 ');
+  const kindLabel = b.meal && MEAL_LABEL[b.meal] ? MEAL_LABEL[b.meal] : (b.kind === 'transfer' ? 'Transfer' : '');
+  const whenText = [b.time, kindLabel].filter(Boolean).join(' \u00b7 ');
   const metaParts = [formatGuests(b.guests), b.area].filter(Boolean);
   const links = [];
   if (showDayLink) {
-    links.push(link(`days/${b.day}`, { class: 'text-btn small', 'data-key': `bk-day-${b.id || b.day}` },
+    links.push(link(zi >= 0 ? `days/${b.day}?z=${zi}` : `days/${b.day}`, { class: 'text-btn small', 'data-key': `bk-day-${b.id || b.day}` },
       icon('calendar'), h('span', null, d ? `${d.date} \u00b7 ${d.title}` : b.day)));
   } else if (v === 'today') {
-    links.push(link(`days/${b.day}`, { class: 'text-btn small', 'data-key': `bk-open-${b.id || b.day}` },
+    links.push(link(zi >= 0 ? `days/${b.day}?z=${zi}` : `days/${b.day}`, { class: 'text-btn small', 'data-key': `bk-open-${b.id || b.day}` },
       icon('calendar'), h('span', null, zi >= 0 && d ? `In plan: Zone ${zi + 1} (${d.zones[zi].name})` : 'Open day plan')));
   } else if (zi >= 0 && d) {
     links.push(h('button', {
@@ -603,14 +658,20 @@ function confirmedBookingCard(b, { day, v = route().path, showDayLink = false } 
     links.push(link(withParam(v, 'p', matchedPlace.id), { class: 'text-btn small', 'data-key': `bk-place-${matchedPlace.id}` },
       icon('info'), h('span', null, 'Venue notes')));
   }
+  if (b.kind !== 'transfer' && b.id) {
+    links.push(link(withParam(v, 'taxi', `bk:${b.id}`), { class: 'text-btn small', 'data-key': `bk-drv-${b.id}`, 'aria-label': `Driver card for ${b.venue}` },
+      icon('car'), h('span', null, 'Driver card')));
+  }
+  const primaryMode = b.mode || (b.kind === 'transfer' ? 'driving' : 'walking');
   return h('article', { class: 'card booking-card', 'aria-label': `Confirmed: ${b.venue}` },
     h('div', { class: 'booking-top' },
       chip('Confirmed', 'ev ev-certified', 'checkCircle'),
       whenText ? h('span', { class: 'booking-when nums' }, whenText) : null),
     h('h3', { class: 'booking-venue' }, b.venue, b.venue_jp ? h('span', { class: 'row-jp', lang: 'ja' }, ` ${b.venue_jp}`) : null),
     metaParts.length ? h('p', { class: 'booking-meta' }, metaParts.join(' \u00b7 ')) : null,
+    b.kind === 'transfer' && b.notes ? h('p', { class: 'booking-note' }, b.notes) : null,
     links.length ? h('div', { class: 'booking-links' }, ...links) : null,
-    goButtons(b.maps_query || b.venue, b.venue, b.mode || 'walking'),
+    goButtons(b.maps_query || b.venue, b.venue, primaryMode),
     bookingReferenceDisclosure(b));
 }
 
@@ -648,10 +709,14 @@ function toBookView() {
   ];
 }
 
-function notBookedNote(iso) {
+function notBookedNote(iso, prefix = 'Not booked yet: ') {
   const open = toBook().filter((x) => x.day === iso && x.need === 'needs' && ctx.prefs[`booked:${x.id}`] !== true);
   if (!open.length) return null;
-  return h('p', { class: 'callout warn' }, icon('warning'), h('span', null, h('strong', null, 'Not booked yet: '), open.map((x) => x.title).join('; '), ' ', link('info/to-book', { class: 'text-btn small inline' }, 'To book')));
+  return h('div', { class: 'callout warn callout-action' },
+    icon('warning'),
+    h('div', { class: 'callout-body' },
+      h('p', { class: 'callout-text' }, h('strong', null, prefix), open.map((x) => x.title).join('; ')),
+      link('info/to-book', { class: 'text-btn small' }, icon('listRect'), h('span', null, 'Open booking list'))));
 }
 
 // ---------------------------------------------------------------- Today (S2, S3, S4)
@@ -674,7 +739,7 @@ function viewToday(r) {
       confirmed.length ? section('Confirmed', h('div', { class: 'bookings-stack' }, confirmed.map((b) => confirmedBookingCard(b, { day: dayOf(b.day), v: 'today', showDayLink: true })))) : null,
       pendingNeeds.length ? section('To book', grouped(pendingNeeds.slice(0, 6).map(bookRow), 'book-list'), link('info/to-book', { class: 'text-btn' }, 'All bookings to make')) : null,
       docSection('next-up', 'Next up'),
-      section('First day', dayCard(day)),
+      section('First day', tomorrowCard(day)),
       section('Before you go', grouped([pushRow('info/bookings', 'Bookings'), pushRow('info/getting-around', 'Getting around'), pushRow('info/shopping-and-tax-refunds', 'Tax-free shopping')])),
     ];
   } else if (ph.phase === 'after') {
@@ -686,57 +751,109 @@ function viewToday(r) {
     const dayConfirmed = confirmedBookingsForDay(t, day.iso);
     const openText = activeDayOpen(t, day);
     const confirmedZones = new Set(dayConfirmed.map((b) => bookingZoneIndex(day, b)).filter((zi) => zi >= 0));
+    const focusZoneBookings = focus !== null && focus !== undefined ? dayConfirmed.filter((b) => bookingZoneIndex(day, b) === focus) : [];
+    const nextZone = nn.now !== null && nn.now !== undefined ? day.zones[nn.now + 1] : null;
+    const isAirportBoundary = ph.index === 0 || ph.index === t.days.length - 1;
+    const tomorrowSection = tomorrow ? section('Tomorrow', tomorrowCard(tomorrow)) : null;
     main = [
       h('div', { class: 'today-head' },
         h('p', { class: 'eyebrow' }, `${day.date} \u00b7 Day ${ph.index + 1} of ${t.days.length}`),
         h('p', { class: 'today-title' }, day.title),
         h('p', { class: 'day-place' }, day.place)),
-      focus !== null && focus !== undefined ? zoneNowCard(day, day.zones[focus], nn.now === focus ? 'Now' : 'Next')
-        : h('section', { class: 'now-card', 'aria-label': 'Today’s plan' }, h('p', { class: 'eyebrow' }, nn.done ? 'Plan done' : 'Today’s plan'), h('p', { class: 'body' }, nn.done ? 'That’s today’s plan done. Time to head back.' : day.summary)),
+      focus !== null && focus !== undefined ? zoneNowCard(day, day.zones[focus], nn.now === focus ? 'Now' : 'Next', focus, nextZone, focusZoneBookings)
+        : h('section', { class: 'now-card', 'aria-label': 'Today’s plan' },
+          h('p', { class: 'eyebrow' }, nn.done ? 'Plan done' : 'Today’s plan'),
+          h('p', { class: 'body' }, nn.done ? 'That’s today’s plan done. Time to head back.' : day.summary),
+          link(`days/${day.iso}`, { class: 'text-btn small', 'data-key': 'now-open-day' }, icon('calendar'), h('span', null, 'Open the full day'))),
       dayConfirmed.length ? section('Confirmed today', h('div', { class: 'bookings-stack' }, dayConfirmed.map((b) => confirmedBookingCard(b, { day, v: 'today' })))) : null,
-      ph.index === 0 ? documentShortcut() : null,
-      quickActions(day),
-      notBookedNote(day.iso),
-      tomorrow ? notBookedNote(tomorrow.iso) : null,
+      isAirportBoundary ? documentShortcut() : null,
+      quickActions(day, focus),
+      notBookedNote(day.iso, 'Not booked yet: '),
+      tomorrow ? notBookedNote(tomorrow.iso, 'Tomorrow not booked yet: ') : null,
       openText ? h('p', { class: 'callout' }, icon('question'), h('span', null, h('strong', null, 'To decide: '), openText)) : null,
-      section('Rest of today', grouped(day.zones.map((z, i) => h('li', { class: `row ${i === nn.now ? 'is-now' : ''}` },
-        link(`days/${day.iso}`, { class: 'row-link', 'data-key': `zone-${i}` },
-          h('span', { class: 'row-time' }, z.time),
-          h('span', { class: 'row-text' }, h('span', { class: 'row-title' }, z.name), h('span', { class: 'row-sub' }, z.purpose)),
-          confirmedZones.has(i) ? chip('Confirmed', 'ev ev-certified', 'checkCircle') : null,
-          i === nn.now ? chip('Now', 'now') : null, icon('chevronRight', null, 'chevron')))))),
+      nn.done ? tomorrowSection : null,
+      section('Rest of today', grouped(day.zones.map((z, i) => {
+        const isPast = nn.done || (nn.now !== null && nn.now !== undefined && i < nn.now);
+        return h('li', { class: `row ${i === nn.now ? 'is-now' : ''} ${isPast ? 'is-past' : ''}`.trim() },
+          link(`days/${day.iso}?z=${i}`, { class: 'row-link', 'data-key': `zone-${i}` },
+            h('span', { class: 'row-time' }, z.time),
+            h('span', { class: 'row-text' }, h('span', { class: 'row-title' }, z.name), h('span', { class: 'row-sub' }, z.purpose)),
+            confirmedZones.has(i) ? chip('Confirmed', 'ev ev-certified', 'checkCircle') : null,
+            i === nn.now ? chip('Now', 'now') : null, icon('chevronRight', null, 'chevron')));
+      }))),
       watch.length ? section('Watch out', h('ul', { class: 'bullets warn' }, watch.slice(0, 3).map((w) => h('li', null, w))),
         watch.length > 3 ? h('details', { class: 'disclosure' }, h('summary', null, `${watch.length - 3} more`), h('ul', { class: 'bullets warn' }, watch.slice(3).map((w) => h('li', null, w)))) : null) : null,
-      tomorrow ? section('Tomorrow', dayCard(tomorrow)) : null,
+      !nn.done ? tomorrowSection : null,
     ];
   }
   return { title: 'Today', main, place: findPlace(r.params.get('p')) };
 }
 
-function zoneNowCard(day, z, label) {
+function zoneNowCard(day, z, label, zi = 0, nextZ = null, zBookings = []) {
   const gt = z.getting_there || {};
+  const isNow = label === 'Now';
+  const zItems = cache.places.filter((p) => p.dayISO === day.iso && p.zone === z.name);
+  const topStops = zItems.filter((p) => p.kind === 'stops').slice(0, 2).map((p) => p.name);
+  const topShop = zItems.filter((p) => p.kind === 'shop').slice(0, 2).map((p) => p.name);
+  const restSpots = zItems.filter((p) => p.kind === 'sweet').slice(0, 2).map((p) => p.name);
+  const inZoneSummary = [
+    topStops.length ? `See: ${topStops.join(', ')}` : '',
+    !topStops.length && topShop.length ? `Shop: ${topShop.join(', ')}` : '',
+    restSpots.length ? `Rest & coffee: ${restSpots.join(', ')}` : '',
+  ].filter(Boolean).join(' \u00b7 ');
+  const nextGt = nextZ?.getting_there || {};
   return h('section', { class: 'now-card', 'aria-label': `${label}: ${z.name}` },
-    h('div', { class: 'now-top' }, chip(label, label === 'Now' ? 'now' : 'next'), h('span', { class: 'meta nums' }, z.time)),
+    h('div', { class: 'now-top' }, chip(label, isNow ? 'now' : 'next'), h('span', { class: 'meta nums' }, z.time)),
     h('p', { class: 'now-title' }, z.name),
     h('p', { class: 'body' }, z.purpose),
-    gt.how ? metaLine([gt.minutes ? `About ${gt.minutes} min` : '', gt.fare, gt.arrive_at ? `to ${gt.arrive_at}` : '']) : null,
-    gt.maps_query ? goButtons(gt.maps_query, gt.arrive_at || z.name, gt.mode) : null);
+    zBookings.length ? h('div', { class: 'chips' }, zBookings.map((b) =>
+      chip(['Confirmed', b.time, b.venue].filter(Boolean).join(' \u00b7 '), 'ev ev-certified', 'checkCircle'))) : null,
+    isNow && z.short_route ? h('p', { class: 'meta' }, `Shorter walk: ${z.short_route}`) : null,
+    isNow && inZoneSummary ? h('p', { class: 'meta' }, inZoneSummary) : null,
+    !isNow && gt.how ? metaLine([gt.minutes ? `About ${gt.minutes} min` : '', gt.fare, gt.arrive_at ? `to ${gt.arrive_at}` : '']) : null,
+    !isNow && gt.maps_query ? goButtons(gt.maps_query, gt.arrive_at || z.name, gt.mode) : null,
+    isNow && nextZ ? h('div', { class: 'now-next-box' },
+      h('p', { class: 'eyebrow' }, `Next \u00b7 ${nextZ.time}`),
+      h('p', { class: 'now-next-title' }, nextZ.name),
+      nextGt.how ? h('p', { class: 'meta' }, [nextGt.minutes ? `About ${nextGt.minutes} min` : '', nextGt.fare, nextGt.arrive_at ? `to ${nextGt.arrive_at}` : ''].filter(Boolean).join(' \u00b7 ')) : null)
+      : isNow ? h('div', { class: 'now-next-box' }, h('p', { class: 'eyebrow' }, 'Then'), h('p', { class: 'meta' }, day.home?.how || 'Back to the hotel when ready.')) : null,
+    h('div', { class: 'now-actions' },
+      link(`days/${day.iso}?z=${zi}`, { class: 'text-btn small', 'data-key': `now-zone-${zi}` }, icon('calendar'), h('span', null, `Open Zone ${zi + 1} in day plan`)),
+      isNow && gt.maps_query ? ext(dirUrl(gt.maps_query, gt.mode || 'transit'), [icon(MODE_ICON[gt.mode] || 'train'), h('span', null, gt.arrive_at || 'Zone station')], { class: 'text-btn small' }) : null));
 }
 
-function quickActions(day) {
+function quickActions(day, focusZoneIdx = null) {
   const t = ctx.trip;
-  const g = defaultHalalGroup(t, day.iso);
+  const g = zoneHalalGroup(t, day, focusZoneIdx) || defaultHalalGroup(t, day.iso);
+  const curV = ctx.route.v || 'today';
   return h('nav', { class: 'quick', 'aria-label': 'Quick actions' },
-    ext(dirUrl(t.hotel.maps_query, 'transit'), [icon('bed'), h('span', null, 'Back to the hotel')], { class: 'quick-btn' }),
+    ext(dirUrl(t.hotel.maps_query, hotelReturnMode(day)), [icon('bed'), h('span', null, 'Back to the hotel')], { class: 'quick-btn' }),
     link(`food/halal?g=${g}`, { class: 'quick-btn', 'data-key': 'qa-food' }, icon('fork'), h('span', null, 'Food nearby')),
     link(`food/halal?g=${g}&focus=prayer`, { class: 'quick-btn', 'data-key': 'qa-prayer' }, icon('moon'), h('span', null, 'Prayer rooms')),
-    link('info/taxi', { class: 'quick-btn', 'data-key': 'qa-taxi' }, icon('car'), h('span', null, 'Taxi card')));
+    link(withParam(curV, 'taxi', 'hotel'), { class: 'quick-btn', 'data-key': 'qa-taxi' }, icon('car'), h('span', null, 'Taxi card')));
 }
 
-function dayCard(d) {
-  return link(`days/${d.iso}`, { class: 'day-card', 'data-key': `card-${d.iso}` },
+function tomorrowCard(d) {
+  const t = ctx.trip;
+  const conf = confirmedBookingsForDay(t, d.iso);
+  const openText = activeDayOpen(t, d);
+  const z0 = d.zones?.[0];
+  const topWatch = d.watch_outs?.[0] || '';
+  return link(`days/${d.iso}`, { class: 'day-card tomorrow-card', 'data-key': `card-${d.iso}` },
     h('span', { class: 'day-badge' }, h('span', { class: 'day-num' }, d.n), h('span', { class: 'day-k', lang: 'ja' }, d.k)),
-    h('span', { class: 'row-text' }, h('span', { class: 'row-sub' }, d.date), h('span', { class: 'row-title' }, d.title), h('span', { class: 'row-sub' }, d.place)),
+    h('span', { class: 'row-text' },
+      h('span', { class: 'row-sub' }, d.date),
+      h('span', { class: 'row-title' }, d.title),
+      h('span', { class: 'row-sub' }, d.place),
+      z0 ? h('span', { class: 'row-facts' }, `Starts: ${z0.time} \u00b7 ${z0.name}`) : null,
+      h('span', { class: 'row-chips' },
+        typeChip(d.type),
+        chip(LOAD[d.load], 'plain'),
+        d.walk ? chip(`Walking: ${d.walk}`, 'plain', 'figureWalk') : null,
+        ...conf.map((b) => chip(['Confirmed', b.time, b.venue].filter(Boolean).join(' \u00b7 '), 'ev ev-certified', 'checkCircle')),
+        openText ? chip('To decide', 'decide', 'question') : null,
+        d.type === 'shop' ? chip('Carry physical passports', 'plain') : null),
+      topWatch ? h('span', { class: 'row-meta clamp' }, topWatch) : null),
     icon('chevronRight', null, 'chevron'));
 }
 
@@ -864,39 +981,65 @@ function dayAreaBar(d) {
       icon('moon'), h('span', null, prayerGroups.length > 1 ? `Prayer: ${label}` : 'Prayer rooms'), h('span', { class: 'count nums' }, String(count)))));
 }
 
-function spaRow(s) {
+function spaRow(s, dayIso = '', idx = 0) {
   const q = s.maps_query || s.name;
+  const v = ctx.route.v || (dayIso ? `days/${dayIso}` : 'today');
   const line = (lbl, val, cls = 'row-facts') => val ? h('span', { class: cls }, h('strong', null, `${lbl}: `), val) : null;
+  const actions = [];
+  if (s.source && s.booking_url && s.source === s.booking_url) {
+    actions.push(ext(s.booking_url, [icon('link'), h('span', null, `Source & booking (${sourceLabel(s.booking_url)})`)], { class: 'text-btn small' }));
+  } else {
+    if (s.source) actions.push(ext(s.source, [icon('link'), h('span', null, `Source (${sourceLabel(s.source)})`)], { class: 'text-btn small' }));
+    if (s.booking_url) actions.push(ext(s.booking_url, [icon('link'), h('span', null, `Book (${sourceLabel(s.booking_url)})`)], { class: 'text-btn small' }));
+  }
+  if (dayIso && (s.jp || s.address_jp || s.area)) {
+    actions.push(link(withParam(v, 'taxi', `spa:${dayIso}:${idx}`), { class: 'text-btn small', 'data-key': `spa-drv-${dayIso}-${idx}`, 'aria-label': `Driver and walk-in card for ${s.name}` },
+      icon('car'), h('span', null, 'Driver & walk-in card')));
+  }
   return h('li', { class: 'row' },
     h('div', { class: 'row-link spa-item' },
       h('span', { class: 'row-text' },
-        h('span', { class: 'row-title' }, s.name),
+        h('span', { class: 'row-title' }, s.name, s.jp ? h('span', { class: 'row-jp', lang: 'ja' }, ` ${s.jp}`) : null),
         s.area ? h('span', { class: 'row-sub' }, s.area) : null,
         (s.privacy || s.checked_on) ? h('span', { class: 'row-chips' },
           s.privacy ? chip(s.privacy, 'plain') : null,
           s.checked_on ? chip(`Checked ${s.checked_on}`, 'plain') : null) : null,
         s.why ? h('span', { class: 'row-sub' }, s.why) : null,
+        line('Availability', s.availability),
         line('Menu', s.price),
         line('Hours', s.hours),
         line('Rooms', s.attendance),
-        line('Booking', s.booking),
+        line('Walk-in / booking', s.booking),
         line('Notes', s.caveat, 'row-meta'),
-        (s.source || s.booking_url) ? h('span', { class: 'spa-actions' },
-          s.source && s.booking_url && s.source === s.booking_url
-            ? ext(s.booking_url, [icon('link'), h('span', null, `Source & booking (${sourceLabel(s.booking_url)})`)], { class: 'text-btn small' })
-            : [
-                s.source ? ext(s.source, [icon('link'), h('span', null, `Source (${sourceLabel(s.source)})`)], { class: 'text-btn small' }) : null,
-                s.booking_url ? ext(s.booking_url, [icon('link'), h('span', null, `Book (${sourceLabel(s.booking_url)})`)], { class: 'text-btn small' }) : null,
-              ]) : null)),
-    q ? ext(mapsUrl(q), icon('arrowOut'), { class: 'row-go', 'aria-label': `${s.name} in Maps` }) : null);
+        actions.length ? h('span', { class: 'spa-actions' }, ...actions) : null)),
+    q ? ext(dirUrl(q, s.mode || 'walking'), icon('arrowOut'), { class: 'row-go', 'aria-label': `Directions to ${s.name}` }) : null);
+}
+
+function spaOptionsContent(d) {
+  const list = d.spa_options || [];
+  if (!list.length) return null;
+  const hasGroups = list.some((s) => s.zone_group);
+  if (!hasGroups) return grouped(list.map((s, idx) => spaRow(s, d.iso, idx)));
+  const groups = [];
+  list.forEach((s, idx) => {
+    const gName = s.zone_group || 'Options';
+    let entry = groups.find((x) => x.name === gName);
+    if (!entry) { entry = { name: gName, rows: [] }; groups.push(entry); }
+    entry.rows.push(spaRow(s, d.iso, idx));
+  });
+  return groups.map((g) => h('div', { class: 'spa-zone-group' },
+    h('h4', { class: 'kind-title' }, g.name),
+    grouped(g.rows)));
 }
 
 function dayDetail(d, i) {
   const t = ctx.trip;
   const v = `days/${d.iso}`;
   const isToday = d.iso === now().iso;
+  const nn = isToday ? nowNext(d, now().minutes) : { now: null };
   const watch = d.watch_outs || [];
   const dayConfirmed = confirmedBookingsForDay(t, d.iso);
+  const transferConfirmed = dayConfirmed.filter((b) => b.kind === 'transfer');
   const openText = activeDayOpen(t, d);
   const decisions = activeDayDecisions(t, d);
   const bookingsByZone = new Map();
@@ -954,31 +1097,36 @@ function dayDetail(d, i) {
           'aria-label': `Jump to Zone ${zi + 1}, ${z.name}`,
         }, h('span', { class: 'flow-jump-num nums', 'aria-hidden': 'true' }, String(zi + 1)), h('span', { class: 'flow-jump-name' }, z.name), icon('chevronRight', null, 'chevron')) : null));
   })) : null;
+  const isAirportBoundary = i === 0 || i === t.days.length - 1;
   return h('div', { class: 'day-detail' },
     dayJumpStrip(i),
-    i === 0 ? documentShortcut() : null,
+    isAirportBoundary ? documentShortcut() : null,
     header,
     h('p', { class: 'body lead' }, d.summary),
+    dayAreaBar(d),
     dayConfirmed.length ? section('Confirmed', h('div', { class: 'bookings-stack' }, dayConfirmed.map((b) => confirmedBookingCard(b, { day: d, v })))) : null,
     notBookedNote(d.iso),
     openText ? h('p', { class: 'callout' }, icon('question'), h('span', null, h('strong', null, 'To decide: '), openText)) : null,
     h('div', { class: 'day-layout' },
       h('div', { class: 'day-primary' },
         section('The day',
+          d.route_strategy ? h('details', { class: 'disclosure route-top-disc' },
+            h('summary', null, h('span', { class: 'summary-label' }, 'Route & pacing')),
+            h('div', { class: 'disclosure-pad strategy-card' }, h('p', { class: 'body' }, d.route_strategy))) : null,
           itineraryOverview,
-          d.zones.length ? h('div', { class: 'itinerary-stages' }, d.zones.map((z, zi) => zoneCard(d, z, zi, v, flowLabelsByZone.get(zi) || [], bookingsByZone.get(zi) || []))) : null),
-        section('End of the day', h('div', { class: 'card' }, h('p', { class: 'body' }, d.home.how), goButtons(d.home.maps_query || t.hotel.maps_query, 'the hotel', d.home.mode),
+          d.zones.length ? h('div', { class: 'itinerary-stages' }, d.zones.map((z, zi) => zoneCard(d, z, zi, v, flowLabelsByZone.get(zi) || [], bookingsByZone.get(zi) || [], nn.now === zi))) : null),
+        section('End of the day', h('div', { class: 'card' },
+          transferConfirmed.length ? h('div', { class: 'chips' }, transferConfirmed.map((b) =>
+            chip(['Confirmed transfer', b.time, b.venue].filter(Boolean).join(' \u00b7 '), 'ev ev-certified', 'checkCircle'))) : null,
+          h('p', { class: 'body' }, d.home.how),
+          goButtons(d.home.maps_query || t.hotel.maps_query, 'the hotel', d.home.mode),
           d.home.source ? ext(d.home.source, [icon('link'), h('span', null, 'Source')], { class: 'text-btn' }) : null))),
       h('div', { class: 'day-secondary' },
         section('Practical notes & options',
-          dayAreaBar(d),
-          d.spa_options && d.spa_options.length ? h('details', { class: 'disclosure' },
+          d.spa_options && d.spa_options.length ? h('details', { class: 'disclosure', id: 'day-spa' },
             h('summary', null, h('span', { class: 'summary-label' }, `Optional massage, facial & spa (${d.spa_options.length})`)),
             d.spa_intro ? h('div', { class: 'disclosure-pad' }, h('p', { class: 'body' }, d.spa_intro)) : null,
-            grouped(d.spa_options.map(spaRow))) : null,
-          d.route_strategy ? h('details', { class: 'disclosure' },
-            h('summary', null, h('span', { class: 'summary-label' }, 'Route & pacing')),
-            h('div', { class: 'disclosure-pad strategy-card' }, h('p', { class: 'body' }, d.route_strategy))) : null,
+            spaOptionsContent(d)) : null,
           d.logistics && d.logistics.length ? h('details', { class: 'disclosure' },
             h('summary', null, h('span', { class: 'summary-label' }, `Entrances, tickets & practical logistics (${d.logistics.length})`)),
             grouped(d.logistics.map((x) => kvStack(x.label, x.value)), 'kv-list')) : null,
@@ -1003,7 +1151,7 @@ function sourceLabel(url) {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 }
 
-function zoneCard(d, z, zi, v, phaseLabels = [], zBookings = []) {
+function zoneCard(d, z, zi, v, phaseLabels = [], zBookings = [], isNow = false) {
   const gt = z.getting_there || {};
   const items = cache.places.filter((p) => p.dayISO === d.iso && p.zone === z.name);
   const diningBookings = zBookings.filter((b) => !b.kind || b.kind === 'dining' || b.kind === 'restaurant' || Boolean(b.meal));
@@ -1016,11 +1164,15 @@ function zoneCard(d, z, zi, v, phaseLabels = [], zBookings = []) {
         : eatMeal === 'breakfast' ? 'Optional breakfast alternatives'
           : 'Optional dining alternatives')
     : 'Eat';
+  const zeroSightsUnbooked = by('stops').length === 0 && zBookings.length === 0;
+  const autoOpenKind = zeroSightsUnbooked
+    ? ((d.type === 'shop' && by('shop').length) ? 'shop' : (by('shop').length && !by('eat').length ? 'shop' : (by('eat').length ? 'eat' : '')))
+    : '';
   const disclose = (k, label) => {
     const list = by(k);
     if (!list.length) return null;
     const preview = list.slice(0, 2).map((x) => x.name).join(', ') + (list.length > 2 ? '\u2026' : '');
-    return h('details', { class: 'disclosure' },
+    return h('details', { class: 'disclosure', open: k === autoOpenKind },
       h('summary', null,
         h('span', { class: 'summary-label' }, `${label} (${list.length})`, h('span', { class: 'summary-preview' }, ` \u00b7 ${preview}`))),
       grouped(list.map((p) => placeRow(p, v))));
@@ -1035,24 +1187,38 @@ function zoneCard(d, z, zi, v, phaseLabels = [], zBookings = []) {
       h('span', { class: 'confirmed-slot-chips' },
         chip('Confirmed', 'ev ev-certified', 'checkCircle'),
         b.time ? h('span', { class: 'slot-time nums' }, b.time) : null,
-        b.meal && MEAL_LABEL[b.meal] ? h('span', { class: 'slot-meal' }, MEAL_LABEL[b.meal]) : null),
+        b.meal && MEAL_LABEL[b.meal] ? h('span', { class: 'slot-meal' }, MEAL_LABEL[b.meal]) : (b.kind === 'transfer' ? h('span', { class: 'slot-meal' }, 'Transfer') : null)),
       h('span', { class: 'row-title' }, b.venue, b.venue_jp ? h('span', { class: 'row-jp', lang: 'ja' }, ` ${b.venue_jp}`) : null),
       slotMeta ? h('span', { class: 'row-sub' }, slotMeta) : null);
+    const primaryMode = b.mode || (b.kind === 'transfer' ? 'driving' : 'walking');
     return h('li', { class: 'row confirmed-slot-row' },
       matched
         ? link(withParam(v, 'p', matched.id), { class: 'row-link', 'aria-current': selected ? 'true' : null, 'data-key': `row-${matched.id}` }, inner)
-        : h('div', { class: 'row-link' }, inner),
-      ext(dirUrl(b.maps_query || b.venue, b.mode || 'walking'), icon('arrowOut'), { class: 'row-go', 'aria-label': `Directions to ${b.venue}` }));
+        : h('div', { class: 'row-static' }, inner),
+      ext(dirUrl(b.maps_query || b.venue, primaryMode), icon('arrowOut'), { class: 'row-go', 'aria-label': `Directions to ${b.venue}` }));
   });
   const phaseText = phaseLabels.length ? phaseLabels.join(', ') : '';
+  const routeRows = [
+    z.short_route ? kvStack('Shorter walk', z.short_route) : null,
+    z.seating ? kvStack('Seating & rest', z.seating) : null,
+    z.optional_extension ? kvStack('Optional extension', z.optional_extension) : null,
+  ].filter(Boolean);
+  const showSpaJump = d.spa_options && d.spa_options.length > 0 && /spa|scalp|facial|fukushima|walk-in/i.test(`${z.name} ${z.purpose}`);
   return h('section', { class: 'zone card', 'aria-labelledby': `zone-${zi}` },
     h('h3', { class: 'zone-title', id: `zone-${zi}` },
       h('span', { class: 'zone-num', 'aria-hidden': 'true' }, String(zi + 1)),
       h('span', { class: 'zone-name' }, z.name),
+      isNow ? chip('Now', 'now') : null,
       z.badge ? chip(z.badge, 'next') : null),
     h('p', { class: 'meta nums' }, [phaseText, z.time].filter(Boolean).join(' \u00b7 ')),
     h('p', { class: 'body' }, z.purpose),
     confirmedRows.length ? grouped(confirmedRows, 'zone-confirmed') : null,
+    routeRows.length ? grouped(routeRows, 'kv-list zone-routes') : null,
+    showSpaJump ? h('button', {
+      type: 'button',
+      class: 'flow-jump zone-spa-jump',
+      onclick: () => jumpToSpa(),
+    }, icon('leaf'), h('span', null, `Walk-in spa & facial inquiries (${d.spa_options.length})`), icon('chevronRight', null, 'chevron')) : null,
     gt.how ? h('details', { class: 'disclosure getting-disc' },
       h('summary', null,
         icon(MODE_ICON[gt.mode] || 'train'),
@@ -1066,7 +1232,7 @@ function zoneCard(d, z, zi, v, phaseLabels = [], zBookings = []) {
     z.tips && z.tips.length ? h('details', { class: 'disclosure zone-tips' },
       h('summary', null, h('span', { class: 'summary-label' }, `Zone tips & entry details (${z.tips.length})`)),
       h('ul', { class: 'bullets' }, z.tips.map((tip) => h('li', null, tip)))) : null,
-    disclose('eat', eatLabel), disclose('sweet', 'Something sweet'), disclose('shop', 'Shop'));
+    disclose('eat', eatLabel), disclose('sweet', 'Coffee, sweets & rest'), disclose('shop', 'Shop'));
 }
 
 // ---------------------------------------------------------------- Food (S8, S9)
@@ -1100,7 +1266,8 @@ function viewFood(r) {
       todayGroups.length > 1 ? h('div', { class: 'day-area-bar', role: 'group', 'aria-label': 'Today’s areas' },
         todayGroups.map((tg) => {
           const lbl = t.halal.groups.find((x) => x.id === tg)?.label || tg;
-          return h('button', { type: 'button', class: `area-link ${tg === g ? 'is-active' : ''}`, onclick: () => go(`food/halal?g=${tg}`, { replace: true }) },
+          const focusQ = r.params.get('focus') === 'prayer' ? '&focus=prayer' : '';
+          return h('button', { type: 'button', class: `area-link ${tg === g ? 'is-active' : ''}`, onclick: () => go(`food/halal?g=${tg}${focusQ}`, { replace: true }) },
             icon('pin'), h('span', null, lbl));
         })) : null,
       h('details', { class: 'disclosure legend-box' }, h('summary', null, 'What the labels mean'),
@@ -1214,7 +1381,7 @@ function viewInfo(r) {
     documentShortcut(),
     section('Stay', grouped([pushRow('info/hotel', 'Hotel', ctx.trip.hotel.name),
       h('li', { class: 'row' }, link('info/taxi', { class: 'row-link', 'data-key': 'show-taxi' }, h('span', { class: 'row-text' }, h('span', { class: 'row-title tint' }, 'Show taxi card')), icon('car', null, 'chevron'))),
-      h('li', { class: 'row' }, ext(dirUrl(ctx.trip.hotel.maps_query, 'transit'), [h('span', { class: 'row-text' }, h('span', { class: 'row-title tint' }, 'Back to the hotel')), icon('arrowOut', null, 'chevron')], { class: 'row-link' }))])),
+      h('li', { class: 'row' }, ext(dirUrl(ctx.trip.hotel.maps_query, hotelReturnMode(null)), [h('span', { class: 'row-text' }, h('span', { class: 'row-title tint' }, 'Back to the hotel')), icon('arrowOut', null, 'chevron')], { class: 'row-link' }))])),
     section('Travel', rows(['to-book', 'bookings', 'getting-around', 'airport', 'shopping-and-tax-refunds'])),
     section('Plan', rows(['guides', 'decisions', 'next-up', 'what-we-want', 'sources'])),
     section('App', rows(['app'])),
@@ -1288,39 +1455,104 @@ function hotelView() {
   return [
     grouped([kv('Name', ho.name), ho.name_jp ? h('li', { class: 'kv' }, h('span', { class: 'kv-label' }, 'In Japanese'), h('span', { class: 'kv-value', lang: 'ja' }, ho.name_jp)) : null,
       kv('Address', ho.address), kv('Check-in', ho.checkin), kv('Check-out', ho.checkout), kv('Stations', ho.stations),
-      ho.phone ? h('li', { class: 'kv' }, h('span', { class: 'kv-label' }, 'Phone'), ext(`tel:${ho.phone.replace(/\s/g, '')}`, ho.phone, { class: 'kv-value' })) : null], 'kv-list'),
+      ho.phone ? h('li', { class: 'kv' }, h('span', { class: 'kv-label' }, 'Phone'), ext(`tel:${ho.phone.replace(/\s/g, '')}`, ho.phone, { class: 'text-btn small' })) : null], 'kv-list'),
     link('info/taxi', { class: 'btn btn-filled', 'data-key': 'show-taxi-2' }, icon('car'), 'Show Taxi Card'),
     goButtons(ho.maps_query, 'the hotel', 'transit'),
   ];
 }
 
-function taxiCard() { // S12
-  const ho = ctx.trip.hotel;
-  const close = () => go('info');
-  const card = h('div', { class: 'taxi', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Taxi card', tabindex: '-1', onkeydown: (e) => { if (e.key === 'Escape') close(); } },
-    h('div', { class: 'taxi-bar' }, h('button', { class: 'btn btn-plain', type: 'button', onclick: close }, 'Close')),
+function driverCardView({ label = 'Taxi card', nameJp = '', addrJp = '', nameEn = '', addrEn = '', phone = '', query = '', walkInNoteJp = '', walkInNoteEn = '' }, onClose) {
+  const card = h('div', { class: 'taxi', role: 'dialog', 'aria-modal': 'true', 'aria-label': label, tabindex: '-1', onkeydown: (e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } } },
+    h('div', { class: 'taxi-bar' }, h('button', { class: 'btn btn-plain', type: 'button', onclick: onClose }, 'Close')),
     h('div', { class: 'taxi-body' },
       h('p', { class: 'taxi-eyebrow' }, 'Please take me to'),
       h('p', { class: 'taxi-eyebrow', lang: 'ja' }, 'こちらまでお願いします'),
-      ho.name_jp ? h('p', { class: 'taxi-jp', lang: 'ja' }, ho.name_jp) : null,
-      ho.address_jp ? h('p', { class: 'taxi-addr', lang: 'ja' }, ho.address_jp) : null,
-      h('p', { class: 'taxi-en' }, ho.name),
-      h('p', { class: 'taxi-en' }, ho.address),
-      ho.phone ? ext(`tel:${ho.phone.replace(/\s/g, '')}`, [icon('phone'), h('span', null, ho.phone)], { class: 'btn btn-gray' }) : null),
-    goButtons(ho.maps_query, 'the hotel', 'driving'));
+      nameJp ? h('p', { class: 'taxi-jp', lang: 'ja' }, nameJp) : null,
+      addrJp ? h('p', { class: 'taxi-addr', lang: 'ja' }, addrJp) : null,
+      nameEn ? h('p', { class: 'taxi-en' }, nameEn) : null,
+      addrEn ? h('p', { class: 'taxi-en' }, addrEn) : null,
+      walkInNoteJp ? h('div', { class: 'taxi-note' },
+        h('p', { class: 'taxi-eyebrow' }, walkInNoteEn || 'For salon reception (walk-in inquiry)'),
+        h('p', { class: 'taxi-addr', lang: 'ja' }, walkInNoteJp)) : null,
+      phone ? ext(`tel:${phone.replace(/\s/g, '')}`, [icon('phone'), h('span', null, phone)], { class: 'btn btn-gray' }) : null),
+    goButtons(query || nameEn, nameEn || 'destination', 'driving'));
   queueMicrotask(() => card.focus());
   return card;
+}
+
+function taxiCard(onClose = () => go('info')) { // S12
+  const ho = ctx.trip.hotel;
+  return driverCardView({
+    label: 'Taxi card',
+    nameJp: ho.name_jp,
+    addrJp: ho.address_jp,
+    nameEn: ho.name,
+    addrEn: ho.address,
+    phone: ho.phone,
+    query: ho.maps_query,
+  }, onClose);
+}
+
+function driverCardFromParam(r) {
+  const spec = r.params.get('taxi') || '';
+  const close = () => go(withParam(ctx.route.v || 'today', 'taxi', null));
+  if (!spec || spec === 'hotel') return taxiCard(close);
+  if (spec.startsWith('bk:')) {
+    const id = spec.slice(3);
+    const b = confirmedBookings(ctx.trip).find((x) => x.id === id);
+    if (!b) return taxiCard(close);
+    return driverCardView({
+      label: `Driver card: ${b.venue}`,
+      nameJp: b.venue_jp || '',
+      addrJp: b.address_jp || '',
+      nameEn: b.venue,
+      addrEn: [b.area, b.time ? `Reservation ${b.time}` : ''].filter(Boolean).join(' \u00b7 '),
+      query: b.maps_query || b.venue,
+    }, close);
+  }
+  if (spec.startsWith('pl:')) {
+    const p = findPlace(spec.slice(3));
+    if (!p) return taxiCard(close);
+    return driverCardView({
+      label: `Driver card: ${p.name}`,
+      nameJp: p.jp || '',
+      addrJp: p.address_jp || '',
+      nameEn: p.name,
+      addrEn: p.where || p.area || p.zone || '',
+      query: p.maps_query || p.name,
+    }, close);
+  }
+  if (spec.startsWith('spa:')) {
+    const [, iso, rawIdx] = spec.split(':');
+    const d = dayOf(iso);
+    const s = d?.spa_options?.[Number(rawIdx)];
+    if (!s) return taxiCard(close);
+    return driverCardView({
+      label: `Driver card: ${s.name}`,
+      nameJp: s.jp || '',
+      addrJp: s.address_jp || '',
+      nameEn: s.name,
+      addrEn: s.area || '',
+      query: s.maps_query || s.name,
+      walkInNoteEn: s.inquiry_label || '',
+      walkInNoteJp: s.inquiry_jp || '',
+    }, close);
+  }
+  return taxiCard(close);
 }
 
 function airportDay() {
   const t = ctx.trip;
   const first = t.days[0], last = t.days[t.days.length - 1];
+  const transfers = confirmedBookings(t).filter((b) => b.kind === 'transfer');
   const ga = docSec('getting-around');
   const airportRows = ga ? ga.md.split('\n').filter((l, i, a) => /^\|/.test(l) && (i < 2 || /\bKIX\b|airport/i.test(l))).join('\n') : '';
   const bookings = docSec('bookings');
   const flights = bookings ? bookings.md.split('\n').filter((l) => /^\|/.test(l)).join('\n').split(/\n(?=\| Hotel)/)[0] : '';
   return [
     documentShortcut(),
+    transfers.length ? section('Confirmed airport transfers', h('div', { class: 'bookings-stack' },
+      transfers.map((b) => confirmedBookingCard(b, { day: dayOf(b.day), v: 'info/airport', showDayLink: true })))) : null,
     section('Arrival and departure', grouped([pushRow(`days/${first.iso}`, first.title, first.date), pushRow(`days/${last.iso}`, last.title, last.date)])),
     flights ? section('Flights', h('div', { class: 'doc' }, markdown(flights))) : null,
     airportRows ? section('Airport transfers', h('div', { class: 'doc' }, markdown(airportRows))) : null,
