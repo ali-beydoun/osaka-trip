@@ -312,14 +312,24 @@ export function isSupersededByConfirmedBooking(trip, item) {
     }
   }
 
+  const isTransferItem = item.kind === 'transfer' || item.kind === 'transport';
+
   return confirmed.some((b) => {
-    if (b.replaces_to_book && b.replaces_to_book === item.id) return true;
-    if (itemNorm && (normKey(b.venue) === itemNorm || (b.place_match && normKey(b.place_match) === itemNorm))) return true;
-    if (b.kind === 'transfer' && item.kind === 'transfer') {
-      if (b.slot && item.slot) return normKey(b.slot) === normKey(item.slot);
-      const bZone = day ? explicitBookingZoneIndex(day, b) : -1;
-      return bZone >= 0 && itemZone === bZone;
+    const bReplaces = Array.isArray(b.replaces_to_book)
+      ? (Boolean(item.id) && b.replaces_to_book.includes(item.id))
+      : (Boolean(b.replaces_to_book) && Boolean(item.id) && b.replaces_to_book === item.id);
+    if (bReplaces) return true;
+
+    const bIsTransfer = b.kind === 'transfer' || b.kind === 'transport';
+    if (bIsTransfer || isTransferItem) {
+      if (!bIsTransfer || !isTransferItem) return false;
+      const bLeg = normKey(b.leg || b.leg_id || '');
+      const itemLeg = normKey(item.leg || item.leg_id || '');
+      if (bLeg || itemLeg) return Boolean(bLeg && itemLeg && bLeg === itemLeg);
+      return Boolean(itemNorm && (normKey(b.venue) === itemNorm || (b.place_match && normKey(b.place_match) === itemNorm)));
     }
+
+    if (itemNorm && (normKey(b.venue) === itemNorm || (b.place_match && normKey(b.place_match) === itemNorm))) return true;
     const bIsDining = !b.kind || b.kind === 'dining' || b.kind === 'restaurant' || Boolean(b.meal);
     if (bIsDining && isRestaurantItem) {
       if (b.meal && itemMeal) return b.meal === itemMeal;
