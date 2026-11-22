@@ -8,7 +8,7 @@ const zone = (name, time, n) => ({
   stops: [item(`Sample Garden ${n}`, { cost: '¥500', pacing: 'Flat paths', why: `Sample reason ${n}.`, look_for: `Sample highlight ${n}.`, entry_tip: `Sample entry tip ${n}.`, checked_on: '1 May 30' })],
   eat: [item(`Sample Halal Diner ${n}`, { for_b: 'Halal certified', price: '¥1,500', booking: 'Not needed' }), item(`Sample Fish Bar ${n}`, { for_b: 'Fish, prawn or veg options', price: '¥2,000' }), item(`Sample Grill ${n}`, { for_b: 'Not for Traveller B', price: '¥3,000' })],
   sweet: [item(`Sample Pancake Cafe ${n}`, { what: 'Souffle pancakes, sample.' })],
-  shop: [item(`Sample Market ${n}`, { for: 'Both' })],
+  shop: [item(`Sample Market ${n}`, { for: 'Both', prev_query: `Sample Garden ${n} Osaka`, prev_label: `Sample Garden -> Sample Market ${n}` })],
 });
 const L = ['a', 'b', 'c'];
 const day2Zones = [

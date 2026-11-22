@@ -6,7 +6,7 @@ import {
   nowNext, allPlaces, foodCategories, halalPlaces, prayerRooms, defaultHalalGroup, dayHalalGroups, zoneHalalGroup, fill, searchPlaces, parseHM,
   confirmedBookings, confirmedBookingsForDay, confirmedBookingForPlace, bookingZoneIndex, formatGuests,
   activeToBookItems, toBookCaption, activeDayOpen, activeDayDecisions, flowZoneIndex, flowBookingIndex, normKey,
-  dayTheme, dayForwardSummary,
+  dayTheme, dayForwardSummary, zonePrimaryDestination,
 } from './model.js';
 
 const TABS = [
@@ -655,7 +655,11 @@ function placeDetail(it) { // S7: the row expanded, with immediate curbside acti
       halalChip(it.status),
       it.kind === 'eat' ? dietChip(it.for_b) : null,
       it.kind === 'prayer' && it.access ? chip(it.access, /patron/i.test(it.access) ? 'ev ev-claim' : 'plain') : null),
-    fromHereActionRow(q, targetName, primaryMode),
+    fromHereActionRow(q, targetName, primaryMode, {
+      pointOrigin: it.prev_query || '',
+      pointDest: it.prev_query ? q : '',
+      pointLabel: it.prev_label || '',
+    }),
     (jpCopy || canDriver) ? h('div', { class: 'place-top-actions' },
       jpCopy ? copyTextButton(jpCopy, 'Copy Japanese', `Copy Japanese name for ${it.name}`) : null,
       canDriver ? link(withParam(curV, 'taxi', `pl:${it.id}`), { class: 'btn btn-gray btn-small', 'data-key': `drv-pl-${it.id}`, 'aria-label': `Show driver card for ${it.name}` }, icon('car'), h('span', null, 'Show driver card')) : null) : null,
@@ -939,14 +943,10 @@ function zoneNowCard(day, z, label, zi = 0, nextZ = null, zBookings = []) {
     restSpots.length ? `Rest & coffee: ${restSpots.join(', ')}` : '',
   ].filter(Boolean).join(' \u00b7 ');
   const nextGt = nextZ?.getting_there || {};
-  const leadBooking = zBookings[0];
-  const heroDest = (leadBooking && (leadBooking.maps_query || leadBooking.venue))
-    || gt.maps_query
-    || zItems[0]?.maps_query
-    || zItems[0]?.name
-    || z.name;
-  const heroName = (leadBooking && leadBooking.venue) || gt.arrive_at || z.name;
-  const heroMode = leadBooking ? (leadBooking.mode || (leadBooking.kind === 'transfer' ? 'driving' : 'walking')) : (gt.mode || 'transit');
+  const dest = zonePrimaryDestination(ctx.trip, day, zi, { isToday: true, minutes: now().minutes });
+  const heroDest = dest?.query || gt.maps_query || zItems[0]?.maps_query || zItems[0]?.name || z.name;
+  const heroName = dest?.name || gt.arrive_at || z.name;
+  const heroMode = dest?.mode || gt.mode || 'transit';
   return h('section', { class: 'now-card', 'aria-label': `${label}: ${z.name}` },
     h('div', { class: 'now-top' }, chip(label, isNow ? 'now' : 'next'), h('span', { class: 'meta nums' }, z.time)),
     h('p', { class: 'now-title' }, z.name),
@@ -1354,23 +1354,22 @@ function dayDetail(d, i) {
         }, h('span', { class: 'flow-jump-num nums', 'aria-hidden': 'true' }, String(zi + 1)), h('span', { class: 'flow-jump-name' }, z.name), icon('chevronRight', null, 'chevron')) : null));
   })) : null;
   const isAirportBoundary = i === 0 || i === t.days.length - 1;
-  const activeZi = nn.now !== null && nn.now !== undefined ? nn.now : 0;
+  const paramZ = route().params.has('z') ? Number(route().params.get('z')) : -1;
+  const hasExplicitZ = Number.isInteger(paramZ) && paramZ >= 0 && paramZ < (d.zones?.length || 0);
+  const activeZi = hasExplicitZ ? paramZ : (nn.now !== null && nn.now !== undefined ? nn.now : 0);
   const activeZone = d.zones?.[activeZi] || null;
-  const activeGt = activeZone?.getting_there || {};
-  const leadStartBooking = (bookingsByZone.get(activeZi) || [])[0] || dayConfirmed[0] || null;
-  const startDestQuery = (leadStartBooking && activeZi === 0 && (leadStartBooking.maps_query || leadStartBooking.venue))
-    || activeGt.maps_query
-    || d.travel_cards?.[0]?.from_here_dest
-    || d.travel_cards?.[0]?.route_dest
-    || activeZone?.name
-    || t.hotel.maps_query;
-  const startDestName = (leadStartBooking && activeZi === 0 && leadStartBooking.venue)
-    || activeGt.arrive_at
-    || activeZone?.name
-    || d.title;
-  const startMode = activeGt.mode || d.travel_cards?.[0]?.route_mode || 'transit';
+  const startTarget = zonePrimaryDestination(t, d, activeZi, {
+    isToday: isToday && !hasExplicitZ && nn.now !== null && nn.now !== undefined,
+    minutes: isToday ? now().minutes : null,
+  });
+  const startDestQuery = startTarget?.query || t.hotel.maps_query;
+  const startDestName = startTarget?.name || activeZone?.name || d.title;
+  const startMode = startTarget?.mode || 'transit';
+  const stripEyebrow = hasExplicitZ
+    ? `Zone ${activeZi + 1} \u00b7 ${activeZone?.time || d.date}`
+    : (isToday && nn.now !== null ? `Active now \u00b7 Zone ${activeZi + 1}` : `First stop \u00b7 ${activeZone?.time || d.date}`);
   const nextStepStrip = startDestQuery ? h('div', { class: 'card next-step-card' },
-    h('p', { class: 'eyebrow' }, isToday && nn.now !== null ? `Active now \u00b7 Zone ${activeZi + 1}` : `First stop \u00b7 ${activeZone?.time || d.date}`),
+    h('p', { class: 'eyebrow' }, stripEyebrow),
     h('p', { class: 'next-step-title' }, startDestName),
     activeZone?.short_route ? h('p', { class: 'meta' }, activeZone.short_route) : null,
     fromHereActionRow(startDestQuery, startDestName, startMode, { primaryFilled: true }),

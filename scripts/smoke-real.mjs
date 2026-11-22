@@ -57,6 +57,12 @@ for (const viewport of [{ width: 393, height: 852 }, { width: 1366, height: 1024
         mapLinks: document.querySelectorAll('.row:has(.spa-item) .row-go').length,
         smallTargets: [...document.querySelectorAll('.spa-item .text-btn, .row:has(.spa-item) .row-go')]
           .filter((el) => { const b = el.getBoundingClientRect(); return Math.round(b.width) < 44 || Math.round(b.height) < 44; }).length,
+        firstStopNotDinner: Boolean(
+          document.querySelector('.next-step-title')?.textContent
+          && document.querySelector('.booking-venue')?.textContent
+          && !document.querySelector('.booking-venue').textContent.includes(document.querySelector('.next-step-title').textContent.trim())
+          && document.querySelectorAll('.booking-card').length === 1
+        ),
         overflowPx: over,
       } : null;
       const travelCount = document.querySelectorAll('#day-travel .travel-card').length;
@@ -113,17 +119,19 @@ for (const res of results) {
     || !res.day2SpaExpanded
     || res.day2SpaExpanded.options !== 11
     || res.day2SpaExpanded.smallTargets !== 0
+    || res.day2SpaExpanded.firstStopNotDinner !== true
     || res.travelCardsByDay?.day1 !== 1
     || res.travelCardsByDay?.day2 !== 2
-    || res.travelCardsByDay?.day3 !== 1
+    || res.travelCardsByDay?.day3 !== 3
     || res.travelCardsByDay?.day4 !== 4
+    || res.travelCardsByDay?.day5 !== 2
     || res.travelCardsByDay?.day6 !== 1
     || res.travelCardsByDay?.day7 !== 4
-    || res.travelCardsByDay?.day8 !== 1
+    || res.travelCardsByDay?.day8 !== 3
     || res.travelCardsByDay?.day9 !== 4
     || res.travelCardsByDay?.day10 !== 2
     || res.travelCardsByDay?.day11 !== 1
-    || res.travelCardsTotal !== 21
+    || res.travelCardsTotal !== 27
     || res.travelSmallTargets !== 0
   ) {
     console.error(`Smoke assertion failed for viewport ${res.viewport}`);

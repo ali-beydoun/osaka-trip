@@ -489,3 +489,60 @@ export function dayForwardSummary(trip, day) {
     confirmed: confirmedBookingsForDay(trip, day.iso),
   };
 }
+
+// Resolves the primary navigation target for a selected zone on Today or Day detail.
+// Scopes confirmed booking overrides strictly to the selected zone (never falling back to
+// another zone's booking), requires an actual destination venue (excluding transfer pickups),
+// and checks timing so a late meal never overrides a morning start.
+export function zonePrimaryDestination(trip, day, zoneIndex = 0, { isToday = false, minutes = null } = {}) {
+  if (!day) return null;
+  const zones = Array.isArray(day.zones) ? day.zones : [];
+  const zi = Number.isInteger(zoneIndex) && zoneIndex >= 0 && zoneIndex < zones.length ? zoneIndex : 0;
+  const z = zones[zi] || null;
+  const gt = z?.getting_there || {};
+  const zr = z ? zoneRange(z) : null;
+
+  const zBookings = confirmedBookingsForDay(trip, day.iso).filter((b) => bookingZoneIndex(day, b) === zi);
+  const venueBooking = zBookings.find((b) => {
+    if (!b || b.kind === 'transfer' || b.kind === 'transport') return false;
+    if (!b.venue && !b.maps_query) return false;
+    const bm = parseHM(b.time);
+    if (bm === null) return true;
+    if (zr && (bm < zr.start - 90 || bm > zr.end + 90)) return false;
+    if (isToday && minutes !== null) {
+      return minutes >= bm - 90 && minutes <= bm + 120;
+    }
+    if (zr) {
+      return bm - zr.start <= 120;
+    }
+    return true;
+  }) || null;
+
+  if (venueBooking) {
+    return {
+      query: venueBooking.maps_query || venueBooking.venue,
+      name: venueBooking.venue,
+      mode: venueBooking.mode || 'walking',
+      fromBooking: true,
+      booking: venueBooking,
+    };
+  }
+
+  const firstItem = z ? KINDS.flatMap(([k]) => z[k] || [])[0] : null;
+  const tc0 = zi === 0 ? day.travel_cards?.[0] : null;
+  const query = gt.maps_query
+    || tc0?.from_here_dest
+    || tc0?.route_dest
+    || firstItem?.maps_query
+    || firstItem?.name
+    || z?.name
+    || trip?.hotel?.maps_query
+    || '';
+  const name = gt.arrive_at
+    || z?.name
+    || tc0?.dest_label
+    || day.title
+    || '';
+  const mode = gt.mode || tc0?.route_mode || 'transit';
+  return query ? { query, name, mode, fromBooking: false, booking: null } : null;
+}

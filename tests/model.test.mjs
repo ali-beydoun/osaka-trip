@@ -5,7 +5,7 @@ import {
   nowNext, zoneRange, resolveNow, tripPhase, allPlaces, foodCategories, halalByGroup, defaultHalalGroup, dayHalalGroups, zoneHalalGroup,
   walkCaption, dietKey, fill, searchPlaces, confirmedBookings, confirmedBookingsForDay, confirmedBookingForPlace,
   formatGuests, activeToBookItems, toBookCaption, activeDayOpen, activeDayDecisions, flowZoneIndex, flowBookingIndex,
-  dayTheme, dayCorePlan, dayTentativeChoices, dayForwardSummary,
+  dayTheme, dayCorePlan, dayTentativeChoices, dayForwardSummary, zonePrimaryDestination,
   DEFAULT_TO_BOOK_NOTE, CONFIRMED_TO_BOOK_NOTE,
 } from '../docs/js/model.js';
 import { tokyoISO } from '../docs/js/trip.js';
@@ -211,4 +211,75 @@ test('forward-planning summary surfaces core plan, tentative unbooked options an
   assert.match(d3.tentative[0], /arcade hop \(unbooked/i);
   assert.equal(d3.confirmed.length, 1);
   assert.equal(d3.confirmed[0].venue, 'Sample Kaiseki Pavilion');
+});
+
+test('zonePrimaryDestination scopes booking overrides to selected zone, checks timing and excludes airport transfer pickups', () => {
+  const day2 = fixture.days[1]; // Zone 0: 9:00 to 12:30 (unbooked), Zone 2: 17:30 to 21:00 (18:00 Sample Tempura Counter)
+  // Morning First stop (zone 0) must stay on Zone 0's morning target, never jumping to the 18:00 dinner in Zone 2
+  const morningStart = zonePrimaryDestination(fixture, day2, 0, { isToday: false });
+  assert.equal(morningStart.fromBooking, false);
+  assert.equal(morningStart.name, 'Sample Station');
+  assert.equal(morningStart.query, 'Sample Station Osaka');
+
+  // Morning Today at 09:30 also stays on Zone 0's morning target
+  const morningToday = zonePrimaryDestination(fixture, day2, 0, { isToday: true, minutes: 9 * 60 + 30 });
+  assert.equal(morningToday.fromBooking, false);
+  assert.equal(morningToday.name, 'Sample Station');
+
+  // Evening Zone 2 (explicit selection or active at 18:00) resolves to the confirmed dinner venue
+  const eveningSelected = zonePrimaryDestination(fixture, day2, 2, { isToday: false });
+  assert.equal(eveningSelected.fromBooking, true);
+  assert.equal(eveningSelected.name, 'Sample Tempura Counter');
+  assert.equal(eveningSelected.query, 'Sample Tempura Counter Osaka');
+
+  const eveningToday = zonePrimaryDestination(fixture, day2, 2, { isToday: true, minutes: 18 * 60 });
+  assert.equal(eveningToday.fromBooking, true);
+  assert.equal(eveningToday.name, 'Sample Tempura Counter');
+
+  // Even inside a wide zone (9:00 to 13:00 on Day 3 with 12:30 lunch), 9:00 First stop stays on morning zone start,
+  // while Today at 12:00 switches to the 12:30 lunch venue.
+  const day3 = fixture.days[2];
+  const d3Start = zonePrimaryDestination(fixture, day3, 0, { isToday: false });
+  assert.equal(d3Start.fromBooking, false);
+  assert.equal(d3Start.name, 'Sample Station');
+  const d3Noon = zonePrimaryDestination(fixture, day3, 0, { isToday: true, minutes: 12 * 60 });
+  assert.equal(d3Noon.fromBooking, true);
+  assert.equal(d3Noon.name, 'Sample Kaiseki Pavilion');
+
+  // Airport arrival & departure transfer bookings (kind: 'transfer') never override zone destination with a pickup address
+  const airportTrip = {
+    ...fixture,
+    days: [
+      {
+        iso: '2030-05-07',
+        title: 'Sample Arrival',
+        zones: [
+          { name: 'Sample Airport Arrival', time: '19:50 to 21:15', getting_there: { arrive_at: 'Sample Airport T1', maps_query: 'Sample Airport Terminal 1', mode: 'driving' } },
+          { name: 'Sample Hotel Check-in', time: '22:15 to 23:00', getting_there: { arrive_at: 'Sample Hotel', maps_query: 'Sample Hotel Osaka', mode: 'driving' } },
+        ],
+      },
+      {
+        iso: '2030-05-10',
+        title: 'Sample Departure',
+        zones: [
+          { name: 'Sample Morning Errands', time: '11:15 to 15:00', getting_there: { arrive_at: 'Sample Central Station', maps_query: 'Sample Central Station Osaka', mode: 'walking' } },
+          { name: 'Sample Airport Departure', time: '17:00 to 21:00', getting_there: { arrive_at: 'Sample Airport T1', maps_query: 'Sample Airport Terminal 1', mode: 'driving' } },
+        ],
+      },
+    ],
+    bookings: [
+      { id: 'tr-in', day: '2030-05-07', status: 'confirmed', kind: 'transfer', zone: 0, time: '19:55', venue: 'Sample Airport Pickup Service', maps_query: 'Sample Airport Pickup Curb', mode: 'driving' },
+      { id: 'tr-out', day: '2030-05-10', status: 'confirmed', kind: 'transfer', zone: 1, time: '16:00', venue: 'Sample Prebooked Airport Sedan', maps_query: 'Sample Hotel Osaka', mode: 'driving' },
+    ],
+  };
+  const arrZ0 = zonePrimaryDestination(airportTrip, airportTrip.days[0], 0, { isToday: true, minutes: 20 * 60 });
+  assert.equal(arrZ0.fromBooking, false);
+  assert.equal(arrZ0.name, 'Sample Airport T1');
+  const depZ0 = zonePrimaryDestination(airportTrip, airportTrip.days[1], 0, { isToday: false });
+  assert.equal(depZ0.fromBooking, false);
+  assert.equal(depZ0.name, 'Sample Central Station');
+  const depZ1 = zonePrimaryDestination(airportTrip, airportTrip.days[1], 1, { isToday: true, minutes: 17 * 60 + 30 });
+  assert.equal(depZ1.fromBooking, false);
+  assert.equal(depZ1.name, 'Sample Airport T1');
+  assert.equal(depZ1.query, 'Sample Airport Terminal 1');
 });
