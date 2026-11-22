@@ -153,24 +153,19 @@ export function dayHalalGroups(trip, iso) {
   return [defaultHalalGroup(trip, iso)];
 }
 
-// Resolves the best halal/prayer group for a specific active/upcoming zone on multi-area days
-// using only runtime group ids/labels from the decrypted payload (no place names in public code).
+// Resolves the halal/prayer group for a specific zone strictly via explicit data-driven
+// zone/day group mappings in the decrypted payload (no area literals or prose guessing in public code).
 export function zoneHalalGroup(trip, day, zoneIndex) {
   const groups = trip?.halal?.groups;
   if (!Array.isArray(groups) || !groups.length || !day) return '';
-  const dayGroups = dayHalalGroups(trip, day.iso);
   const valid = new Set(groups.map((g) => g.id));
-  const z = Number.isInteger(zoneIndex) && zoneIndex >= 0 ? day.zones?.[zoneIndex] : null;
-  if (z) {
-    if (z.halal_group && valid.has(z.halal_group)) return z.halal_group;
-    const hay = normKey(`${z.name || ''} ${z.purpose || ''} ${z.getting_there?.arrive_at || ''}`);
-    const candidates = dayGroups.length > 1 ? groups.filter((g) => dayGroups.includes(g.id)) : groups;
-    for (const g of candidates) {
-      const idNorm = normKey(g.id);
-      const lblNorm = normKey(g.label);
-      if ((idNorm && hay.includes(idNorm)) || (lblNorm && hay.includes(lblNorm))) return g.id;
-    }
+  if (Number.isInteger(zoneIndex) && zoneIndex >= 0) {
+    const z = day.zones?.[zoneIndex];
+    if (z?.halal_group && valid.has(z.halal_group)) return z.halal_group;
+    const mapped = trip?.halal?.zoneGroups?.[day.iso]?.[zoneIndex];
+    if (mapped && valid.has(mapped)) return mapped;
   }
+  const dayGroups = dayHalalGroups(trip, day.iso);
   return dayGroups[0] || defaultHalalGroup(trip, day.iso);
 }
 

@@ -14,6 +14,7 @@ const L = ['a', 'b', 'c'];
 const day2Zones = [
   {
     ...zone('Sample Zone A1', '9:00 to 12:30', 'ba'),
+    halal_group: 'umeda',
     short_route: 'Sample flat lift-connected route ba.',
     seating: 'Sample 9F book cafe seating ba.',
     optional_extension: 'Sample backstreet coffee loop ba.',
@@ -25,7 +26,8 @@ const day2Zones = [
     ],
   },
   {
-    ...zone('Sample Nara Zone B1', '13:30 to 17:00', 'bb'),
+    ...zone('Sample Zone B1', '13:30 to 17:00', 'bb'),
+    halal_group: 'nara',
     eat: [
       item('Sample Halal Diner bb', { for_b: 'Halal certified', price: '¥1,500', booking: 'Not needed' }),
       item('Sample Fish Bar bb', { for_b: 'Fish, prawn or veg options', price: '¥2,200' }),
@@ -35,6 +37,7 @@ const day2Zones = [
   },
   {
     name: 'Sample Zone C1',
+    halal_group: 'umeda',
     purpose: 'Sample evening dinner zone bc',
     time: '17:30 to 21:00',
     what_to_look_for: 'Sample lantern alley bc.',
